@@ -206,7 +206,20 @@ override_doctype_class = {
 
 # User Data Protection
 # --------------------
-
+fixtures = [
+    {
+        "doctype": "Custom Field",
+        "filters": [
+            [
+                "name",
+                "in",
+                [
+                    "Employee-custom_omani_id",
+                ]
+            ]
+        ]
+    }
+]
 # user_data_fields = [
 # 	{
 # 		"doctype": "{doctype_1}",
