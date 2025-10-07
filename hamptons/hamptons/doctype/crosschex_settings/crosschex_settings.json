@@ -1,0 +1,257 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-07-04 11:58:46.293893",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "basic_settings_tab",
+  "api_configurations",
+  "section_break_legacy",
+  "api_url",
+  "api_key",
+  "api_secret",
+  "column_break_rnih",
+  "enable_realtime_sync",
+  "sync_frequency",
+  "sync_hours_back",
+  "status_tab",
+  "section_break_status",
+  "connection_status",
+  "last_sync_time",
+  "last_sync_status",
+  "column_break_yteu",
+  "token",
+  "token_expires",
+  "last_token_generated",
+  "section_break_controls",
+  "test_connection_btn",
+  "sync_now_btn",
+  "column_break_controls",
+  "clear_logs_btn",
+  "reset_token_btn",
+  "advanced_tab",
+  "section_break_advanced",
+  "timezone",
+  "date_format",
+  "column_break_advanced",
+  "log_retention_days",
+  "webhook_retry_attempts"
+ ],
+ "fields": [
+  {
+   "fieldname": "basic_settings_tab",
+   "fieldtype": "Tab Break",
+   "label": "Basic Settings"
+  },
+  {
+   "fieldname": "api_configurations",
+   "fieldtype": "Table",
+   "label": "API Configurations",
+   "options": "CrossChex API Configuration",
+   "description": "Configure multiple CrossChex Cloud API connections for different regions (US, EU, etc.)"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_break_legacy",
+   "fieldtype": "Section Break",
+   "label": "Legacy Single Configuration (Deprecated)"
+  },
+  {
+   "default": "https://api.us.crosschexcloud.com/",
+   "fieldname": "api_url",
+   "fieldtype": "Data",
+   "label": "API URL",
+   "description": "Deprecated: Use API Configurations table above for multi-device support"
+  },
+  {
+   "fieldname": "api_key",
+   "fieldtype": "Data",
+   "label": "API Key",
+   "description": "Deprecated: Use API Configurations table above"
+  },
+  {
+   "fieldname": "api_secret",
+   "fieldtype": "Password",
+   "label": "API Secret",
+   "description": "Deprecated: Use API Configurations table above"
+  },
+  {
+   "fieldname": "column_break_rnih",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "enable_realtime_sync",
+   "fieldtype": "Check",
+   "label": "Enable Realtime Sync"
+  },
+  {
+   "default": "15",
+   "fieldname": "sync_frequency",
+   "fieldtype": "Select",
+   "label": "Sync Frequency (minutes)",
+   "options": "5\n15\n30\n60"
+  },
+  {
+   "default": "24",
+   "fieldname": "sync_hours_back",
+   "fieldtype": "Int",
+   "label": "Sync Hours Back"
+  },
+  {
+   "fieldname": "status_tab",
+   "fieldtype": "Tab Break",
+   "label": "Status & Controls"
+  },
+  {
+   "fieldname": "section_break_status",
+   "fieldtype": "Section Break",
+   "label": "Current Status"
+  },
+  {
+   "default": "Not Tested",
+   "fieldname": "connection_status",
+   "fieldtype": "Select",
+   "label": "Connection Status",
+   "options": "Not Tested\nConnected\nDisconnected\nError",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_sync_time",
+   "fieldtype": "Datetime",
+   "label": "Last Sync Time",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_sync_status",
+   "fieldtype": "Small Text",
+   "label": "Last Sync Status",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_yteu",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "token",
+   "fieldtype": "Password",
+   "label": "Access Token",
+   "read_only": 1
+  },
+  {
+   "fieldname": "token_expires",
+   "fieldtype": "Datetime",
+   "label": "Token Expires",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_token_generated",
+   "fieldtype": "Datetime",
+   "label": "Last Token Generated",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_controls",
+   "fieldtype": "Section Break",
+   "label": "Manual Controls"
+  },
+  {
+   "fieldname": "test_connection_btn",
+   "fieldtype": "Button",
+   "label": "Test Connection"
+  },
+  {
+   "fieldname": "sync_now_btn",
+   "fieldtype": "Button",
+   "label": "Sync Now"
+  },
+  {
+   "fieldname": "column_break_controls",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "clear_logs_btn",
+   "fieldtype": "Button",
+   "label": "Clear Logs"
+  },
+  {
+   "fieldname": "reset_token_btn",
+   "fieldtype": "Button",
+   "label": "Reset Token"
+  },
+  {
+   "fieldname": "advanced_tab",
+   "fieldtype": "Tab Break",
+   "label": "Advanced Settings"
+  },
+  {
+   "fieldname": "section_break_advanced",
+   "fieldtype": "Section Break",
+   "label": "Regional Settings"
+  },
+  {
+   "default": "UTC",
+   "fieldname": "timezone",
+   "fieldtype": "Select",
+   "label": "Timezone",
+   "options": "UTC\nAsia/Dubai\nAmerica/New_York\nEurope/London\nAsia/Kolkata\nAsia/Singapore"
+  },
+  {
+   "default": "YYYY-MM-DD HH:mm:ss",
+   "fieldname": "date_format",
+   "fieldtype": "Data",
+   "label": "Date Format"
+  },
+  {
+   "fieldname": "column_break_advanced",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "30",
+   "fieldname": "log_retention_days",
+   "fieldtype": "Int",
+   "label": "Log Retention Days"
+  },
+  {
+   "default": "3",
+   "fieldname": "webhook_retry_attempts",
+   "fieldtype": "Int",
+   "label": "Webhook Retry Attempts"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2025-07-31 16:47:15.838571",
+ "modified_by": "Administrator",
+ "module": "Hamptons",
+ "name": "Crosschex Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "HR Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "HR User"
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
