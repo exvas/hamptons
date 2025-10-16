@@ -191,6 +191,22 @@ def create_attendance_log(args):
             timestamp = str(int(time.time() * 1000))
             checkin_name = f"CKIN-{timestamp}"
             
+            # Check for duplicate using CrossChex UUID to prevent re-importing same record
+            crosschex_uuid = i.get("uuid")
+            if crosschex_uuid:
+                # Check if a checkin with this UUID already exists
+                existing_checkin = frappe.db.exists(
+                    "Employee Checkin",
+                    {"custom_crosschex_uuid": crosschex_uuid}
+                )
+                
+                if existing_checkin:
+                    frappe.log_error(
+                        message=f"Skipping duplicate record with UUID {crosschex_uuid}. Employee: {employee}, Time: {checkin_time}",
+                        title="CrossChex Webhook - Duplicate Skipped"
+                    )
+                    continue  # Skip this record, it's already imported
+            
             try:
                 # Use Frappe document creation instead of direct SQL to avoid table structure issues
                 checkin_doc = frappe.new_doc("Employee Checkin")

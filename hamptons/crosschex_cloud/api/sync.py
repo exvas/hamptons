@@ -158,9 +158,9 @@ def fetch_attendance_from_crosschex_api(settings, access_token):
     try:
         import uuid
         
-        # Get date range for sync (last 24 hours)
+        # Get date range for sync (last 365 days to capture historical records)
         end_time = datetime.utcnow()
-        begin_time = end_time - timedelta(hours=24)
+        begin_time = end_time - timedelta(days=365)
         
         # Format dates for API
         begin_time_str = begin_time.strftime("%Y-%m-%dT%H:%M:%S+00:00")
@@ -201,7 +201,33 @@ def fetch_attendance_from_crosschex_api(settings, access_token):
             if 'payload' in data and 'list' in data['payload']:
                 records = data['payload']['list']
                 frappe.logger().info(f"Fetched {len(records)} attendance records from CrossChex Cloud")
-                return records
+                
+                # Log sample record for debugging
+                if records:
+                    frappe.log_error(
+                        message=f"CrossChex API Response Sample:\n" +
+                                f"Total records: {len(records)}\n" +
+                                f"Sample record: {json.dumps(records[0], indent=2)}",
+                        title="CrossChex Sync - API Response"
+                    )
+                
+                # Transform API response format to webhook format
+                # API format: {"emp_pin": "1040", "checktime": "...", "check_type": 0, ...}
+                # Webhook format: {"employee": {"workno": "1040"}, "checktime": "...", "checktype": 0, ...}
+                transformed_records = []
+                for record in records:
+                    transformed_record = {
+                        "employee": {
+                            "workno": record.get("emp_pin") or record.get("employee_id") or record.get("workno")
+                        },
+                        "checktime": record.get("checktime") or record.get("check_time"),
+                        "checktype": record.get("check_type") if "check_type" in record else record.get("checktype", 0),
+                        "uuid": record.get("uuid") or record.get("id"),
+                        "device": record.get("device", {})
+                    }
+                    transformed_records.append(transformed_record)
+                
+                return transformed_records
         
         frappe.logger().error(f"CrossChex API request failed: {response.status_code}")
         return []

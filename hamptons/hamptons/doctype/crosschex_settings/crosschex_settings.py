@@ -324,7 +324,7 @@ def get_crosschex_status():
         return {"error": f"Error getting status: {str(e)}"}
 
 def scheduled_attendance_sync():
-    """Scheduled function for attendance sync"""
+    """Scheduled function for attendance sync - syncs all configured devices"""
     try:
         if not frappe.db.exists("DocType", "Crosschex Settings"):
             return
@@ -333,24 +333,59 @@ def scheduled_attendance_sync():
         if not settings.enable_realtime_sync:
             return
         
-        # Import here to avoid circular imports
-        from hamptons.crosschex_cloud.api.sync import manual_sync_crosschex_cloud
-        
-        result = manual_sync_crosschex_cloud()
-        
-        if result.get("success"):
+        # Check if we have API configurations (multi-device setup)
+        if settings.api_configurations and len(settings.api_configurations) > 0:
+            # Sync all configured devices from the child table
+            total_processed = 0
+            total_errors = 0
+            sync_results = []
+            
+            for config in settings.api_configurations:
+                try:
+                    result = sync_individual_device(
+                        api_url=config.api_url,
+                        api_key=config.api_key,
+                        config_row_name=config.name,
+                        config_name=config.configuration_name
+                    )
+                    
+                    if result.get("success"):
+                        total_processed += result.get("processed", 0)
+                        sync_results.append(f"{config.configuration_name}: {result.get('processed', 0)} records")
+                    else:
+                        total_errors += 1
+                        sync_results.append(f"{config.configuration_name}: Error - {result.get('error', 'Unknown')}")
+                        
+                except Exception as e:
+                    total_errors += 1
+                    sync_results.append(f"{config.configuration_name}: Exception - {str(e)}")
+                    frappe.logger().error(f"Error syncing device {config.configuration_name}: {str(e)}")
+            
+            # Update settings with sync summary
+            status_message = f"Auto-sync: Processed {total_processed} records from {len(settings.api_configurations)} devices. " + "; ".join(sync_results)
             settings.db_set('last_sync_time', now_datetime(), update_modified=False)
-            settings.db_set('last_sync_status', f"Auto-sync: {result.get('message')}", update_modified=False)
+            settings.db_set('last_sync_status', status_message[:255], update_modified=False)  # Limit to 255 chars
+            frappe.db.commit()
+            
         else:
-            settings.db_set('last_sync_status', f"Auto-sync failed: {result.get('error')}", update_modified=False)
-        
-        frappe.db.commit()
+            # Fallback to old single-device sync using global settings
+            from hamptons.crosschex_cloud.api.sync import manual_sync_crosschex_cloud
+            
+            result = manual_sync_crosschex_cloud()
+            
+            if result.get("success"):
+                settings.db_set('last_sync_time', now_datetime(), update_modified=False)
+                settings.db_set('last_sync_status', f"Auto-sync: {result.get('message')}", update_modified=False)
+            else:
+                settings.db_set('last_sync_status', f"Auto-sync failed: {result.get('error')}", update_modified=False)
+            
+            frappe.db.commit()
         
     except Exception as e:
         frappe.logger().error(f"Error in scheduled_attendance_sync: {str(e)}")
 
 def check_and_refresh_token():
-    """Scheduled function to check and refresh token if needed"""
+    """Scheduled function to check and refresh tokens for all devices"""
     try:
         if not frappe.db.exists("DocType", "Crosschex Settings"):
             return
@@ -359,10 +394,43 @@ def check_and_refresh_token():
         if not settings.enable_realtime_sync:
             return
         
-        # Check if token needs refresh
-        current_token = settings.get_password('token')
-        if not current_token or (settings.token_expires and get_datetime(settings.token_expires) <= now_datetime()):
-            settings.generate_token()
+        # Refresh tokens for all API configurations
+        if settings.api_configurations and len(settings.api_configurations) > 0:
+            for config in settings.api_configurations:
+                try:
+                    # Check if token needs refresh
+                    token = config.get_password('token') if hasattr(config, 'token') else None
+                    token_expires = config.token_expires if hasattr(config, 'token_expires') else None
+                    
+                    needs_refresh = False
+                    if not token:
+                        needs_refresh = True
+                    elif token_expires:
+                        try:
+                            expires_dt = get_datetime(token_expires)
+                            # Refresh if expires within next 30 minutes
+                            if (expires_dt - now_datetime()).total_seconds() <= 1800:
+                                needs_refresh = True
+                        except:
+                            needs_refresh = True
+                    
+                    if needs_refresh:
+                        # Generate new token via test connection
+                        test_individual_api_config(
+                            api_url=config.api_url,
+                            api_key=config.api_key,
+                            config_row_name=config.name,
+                            config_name=config.configuration_name
+                        )
+                        frappe.logger().info(f"Token refreshed for {config.configuration_name}")
+                        
+                except Exception as e:
+                    frappe.logger().error(f"Error refreshing token for {config.configuration_name}: {str(e)}")
+        else:
+            # Fallback to old single-device token refresh
+            current_token = settings.get_password('token')
+            if not current_token or (settings.token_expires and get_datetime(settings.token_expires) <= now_datetime()):
+                settings.generate_token()
             
     except Exception as e:
         frappe.logger().error(f"Error in check_and_refresh_token: {str(e)}")
@@ -530,7 +598,9 @@ def sync_individual_device(api_url, api_key, config_row_name, config_name=None):
         
         # Step 2: Fetch attendance data
         end_time = datetime.utcnow()
-        begin_time = end_time - timedelta(hours=24)
+        # Fetch last 365 days (1 year) of data to capture historical records
+        # For initial sync or catching up on old data
+        begin_time = end_time - timedelta(days=365)
         
         begin_time_str = begin_time.strftime("%Y-%m-%dT%H:%M:%S+00:00")
         end_time_str = end_time.strftime("%Y-%m-%dT%H:%M:%S+00:00")
@@ -575,16 +645,67 @@ def sync_individual_device(api_url, api_key, config_row_name, config_name=None):
         
         records = data['payload']['list']
         
+        # Log the API response structure for debugging
+        frappe.log_error(
+            message=f"CrossChex API Response for {config_name or api_url}:\n" +
+                    f"Total records: {len(records)}\n" +
+                    f"Sample record (first): {json.dumps(records[0], indent=2) if records else 'No records'}\n" +
+                    f"Sample record (last): {json.dumps(records[-1], indent=2) if len(records) > 1 else 'Only one record'}\n" +
+                    f"Full response payload keys: {list(data['payload'].keys())}\n" +
+                    f"First record keys: {list(records[0].keys()) if records else 'No keys'}",
+            title="CrossChex Sync - API Response Structure"
+        )
+        
         # Step 3: Process attendance records
         processed_count = 0
         errors = []
         
         for record in records:
             try:
-                create_attendance_log([record])
+                # Transform API response format to webhook format expected by create_attendance_log
+                # API format: {"emp_pin": "1040", "checktime": "...", "check_type": 0, ...}
+                # Webhook format: {"employee": {"workno": "1040"}, "checktime": "...", "checktype": 0, ...}
+                
+                # Try to extract employee identifier from multiple possible field names
+                employee_id = (
+                    record.get("emp_pin") or 
+                    record.get("employee_id") or 
+                    record.get("empno") or
+                    record.get("emp_code") or
+                    record.get("pin") or
+                    record.get("workno") or
+                    (record.get("employee", {}).get("workno") if isinstance(record.get("employee"), dict) else None) or
+                    (record.get("employee", {}).get("pin") if isinstance(record.get("employee"), dict) else None) or
+                    (record.get("employee", {}).get("emp_pin") if isinstance(record.get("employee"), dict) else None)
+                )
+                
+                # Log the record if employee_id is missing to help debug
+                if not employee_id:
+                    frappe.log_error(
+                        message=f"Cannot find employee identifier in record. All fields: {json.dumps(record, indent=2)}",
+                        title="CrossChex Sync - Missing Employee ID"
+                    )
+                    errors.append("Missing employee identifier in record")
+                    continue
+                
+                transformed_record = {
+                    "employee": {
+                        "workno": employee_id
+                    },
+                    "checktime": record.get("checktime") or record.get("check_time") or record.get("time"),
+                    "checktype": record.get("check_type") if "check_type" in record else record.get("checktype", 0),
+                    "uuid": record.get("uuid") or record.get("id") or record.get("record_id"),
+                    "device": record.get("device", {})
+                }
+                
+                create_attendance_log([transformed_record])
                 processed_count += 1
             except Exception as e:
                 errors.append(f"Error processing record: {str(e)}")
+                frappe.log_error(
+                    message=f"Failed to process record: {json.dumps(record, indent=2)}\nError: {str(e)}",
+                    title="CrossChex Sync - Record Processing Error"
+                )
                 continue
         
         return {

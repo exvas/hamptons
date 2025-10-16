@@ -148,6 +148,17 @@ override_doctype_class = {
 # Scheduled Tasks
 # ---------------
 
+scheduler_events = {
+	"cron": {
+		"*/15 * * * *": [
+			"hamptons.hamptons.doctype.crosschex_settings.crosschex_settings.scheduled_attendance_sync"
+		]
+	},
+	"hourly": [
+		"hamptons.hamptons.doctype.crosschex_settings.crosschex_settings.check_and_refresh_token"
+	]
+}
+
 # scheduler_events = {
 # 	"all": [
 # 		"hamptons.tasks.all"
@@ -215,6 +226,7 @@ fixtures = [
                 "in",
                 [
                     "Employee-custom_omani_id",
+                    "Employee Checkin-custom_crosschex_uuid",
                 ]
             ]
         ]
