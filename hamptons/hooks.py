@@ -137,13 +137,11 @@ override_doctype_class = {
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+doc_events = {
+	"Employee Checkin": {
+		"on_submit": "hamptons.overrides.employee_checkin.on_employee_checkin_submit"
+	}
+}
 
 # Scheduled Tasks
 # ---------------

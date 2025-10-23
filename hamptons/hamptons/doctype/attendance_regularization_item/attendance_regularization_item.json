@@ -1,0 +1,66 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-10-23 08:19:55.879163",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "time",
+  "device_id",
+  "column_break_zttp",
+  "log_type",
+  "employee_checkin"
+ ],
+ "fields": [
+  {
+   "fieldname": "time",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Date & Time",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_zttp",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "device_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Location / Device ID",
+   "read_only": 1
+  },
+  {
+   "fieldname": "log_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Log Type",
+   "options": "IN\nOUT",
+   "read_only": 1
+  },
+  {
+   "fieldname": "employee_checkin",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Employee Checkin",
+   "options": "Employee Checkin",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-10-23 08:25:40.156105",
+ "modified_by": "Administrator",
+ "module": "Hamptons",
+ "name": "Attendance Regularization Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
