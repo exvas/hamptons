@@ -225,6 +225,8 @@ fixtures = [
                 [
                     "Employee-custom_omani_id",
                     "Employee Checkin-custom_crosschex_uuid",
+                    "Employee Checkin-custom_attendance_regularization",
+                    "Attendance-custom_attendance_regularization"
                 ]
             ]
         ]

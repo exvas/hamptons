@@ -127,7 +127,7 @@ def calculate_early_exit_time(checkout_time, shift_end_time):
 def should_create_regularization(checkin_doc):
 	"""
 	Determine if an Attendance Regularization should be created based on checkin/checkout.
-	Only create regularization after shift end time has passed.
+	Creates regularization immediately for late entries, and after shift end for early exits.
 	
 	Args:
 		checkin_doc: Employee Checkin document
@@ -152,14 +152,7 @@ def should_create_regularization(checkin_doc):
 	current_time = now_datetime()
 	checkin_datetime = get_datetime(checkin_doc.time)
 	
-	# Create datetime for shift end on the checkin date
-	shift_end_datetime = datetime.combine(checkin_date, shift_type.end_time)
-	
-	# Only proceed if shift end time has passed
-	if current_time < shift_end_datetime:
-		return False, "Shift end time has not passed yet", None
-	
-	# Check for late entry (IN log)
+	# Check for late entry (IN log) - Create immediately
 	if checkin_doc.log_type == "IN":
 		grace_period = shift_type.late_entry_grace_period or 0
 		late_time = calculate_late_time(checkin_datetime, shift_type.start_time, grace_period)
@@ -167,8 +160,15 @@ def should_create_regularization(checkin_doc):
 		if late_time:
 			return True, "Late entry", late_time
 	
-	# Check for early exit (OUT log)
+	# Check for early exit (OUT log) - Only after shift end time
 	elif checkin_doc.log_type == "OUT":
+		# Create datetime for shift end on the checkin date
+		shift_end_datetime = datetime.combine(checkin_date, shift_type.end_time)
+		
+		# Only proceed if shift end time has passed
+		if current_time < shift_end_datetime:
+			return False, "Shift end time has not passed yet (early exit detection deferred)", None
+		
 		early_time = calculate_early_exit_time(checkin_datetime, shift_type.end_time)
 		
 		if early_time:
@@ -311,6 +311,14 @@ def on_employee_checkin_submit(doc, method=None):
 	# Get shift assignment and shift type
 	checkin_date = getdate(doc.time)
 	shift_assignment = get_active_shift_assignment(doc.employee, checkin_date)
+	
+	if not shift_assignment:
+		frappe.log_error(
+			message=f"No shift assignment found for {doc.employee} on {checkin_date}",
+			title="Attendance Regularization - No Shift Assignment"
+		)
+		return
+	
 	shift_type = validate_shift_type(shift_assignment.shift_type)
 	
 	# Create or update regularization
