@@ -14,6 +14,9 @@ class AttendanceRegularization(Document):
 		if self.status != "Pending":
 			frappe.throw(_("Only Pending requests can be approved"))
 		
+		if self.docstatus != 0:
+			frappe.throw(_("Only draft documents can be approved"))
+		
 		if not self.shift:
 			frappe.throw(_("Shift Type is required to approve Attendance Regularization"))
 		
@@ -53,13 +56,16 @@ class AttendanceRegularization(Document):
 			attendance.insert(ignore_permissions=True)
 			attendance.submit()
 			
-			# Update regularization status
-			self.db_set("status", "Approved", update_modified=True)
-			self.db_set("attendance", attendance.name, update_modified=False)
+			# Update status to Approved
+			self.status = "Approved"
+			self.attendance = attendance.name
+			
+			# Submit the Attendance Regularization document
+			self.submit()
 			frappe.db.commit()
 			
 			frappe.msgprint(
-				_("Attendance Regularization approved. Attendance {0} created as Present").format(
+				_("Attendance Regularization approved and submitted. Attendance {0} created as Present").format(
 					frappe.utils.get_link_to_form("Attendance", attendance.name)
 				),
 				indicator="green"
@@ -77,6 +83,9 @@ class AttendanceRegularization(Document):
 		"""Reject the regularization request and create Absent attendance"""
 		if self.status != "Pending":
 			frappe.throw(_("Only Pending requests can be rejected"))
+		
+		if self.docstatus != 0:
+			frappe.throw(_("Only draft documents can be rejected"))
 		
 		if not self.shift:
 			frappe.throw(_("Shift Type is required to reject Attendance Regularization"))
@@ -117,13 +126,16 @@ class AttendanceRegularization(Document):
 			attendance.insert(ignore_permissions=True)
 			attendance.submit()
 			
-			# Update regularization status
-			self.db_set("status", "Rejected", update_modified=True)
-			self.db_set("attendance", attendance.name, update_modified=False)
+			# Update status to Rejected
+			self.status = "Rejected"
+			self.attendance = attendance.name
+			
+			# Submit the Attendance Regularization document
+			self.submit()
 			frappe.db.commit()
 			
 			frappe.msgprint(
-				_("Attendance Regularization rejected. Attendance {0} marked as Absent").format(
+				_("Attendance Regularization rejected and submitted. Attendance {0} marked as Absent").format(
 					frappe.utils.get_link_to_form("Attendance", attendance.name)
 				),
 				indicator="orange"

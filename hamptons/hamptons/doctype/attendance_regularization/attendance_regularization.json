@@ -81,12 +81,12 @@
    "read_only": 1
   },
   {
-   "default": "Open",
+   "default": "Pending",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "Open\nCompleted",
+   "options": "Pending\nApproved\nRejected",
    "read_only": 1
   },
   {
