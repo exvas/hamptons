@@ -75,9 +75,6 @@ def create_attendance_log(args):
     if type(args) == str:
         args = json.loads(args)
 
-    # Debug table structure on first run
-    debug_table_structure()
-
     processed_count = 0
     created_count = 0
     error_count = 0
@@ -107,11 +104,6 @@ def create_attendance_log(args):
                 )
                 continue
             
-            frappe.log_error(
-                message=f"Looking up employee with attendance_device_id: {attn_id_int}",
-                title="CrossChex Webhook - Employee Lookup Debug"
-            )
-            
             # Look up employee by attendance_device_id
             employee = frappe.db.get_value("Employee", {"attendance_device_id": attn_id_int, "status": "Active"}, "name")
             if not employee:
@@ -121,11 +113,6 @@ def create_attendance_log(args):
                     title="CrossChex Webhook - Employee not found"
                 )
                 continue
-            
-            frappe.log_error(
-                message=f"Found employee: {employee}, getting employee details...",
-                title="CrossChex Webhook - Employee Found"
-            )
             
             # Get employee details and attendance_device_id for logging and shift lookup
             employee_details = frappe.db.get_value("Employee", employee, ["employee_name", "department", "designation", "attendance_device_id"], as_dict=True)
@@ -142,12 +129,11 @@ def create_attendance_log(args):
                     # Remove timezone info: +00:00, -05:00, Z, etc.
                     datetime_clean = re.sub(r'[+-]\d{2}:\d{2}$|Z$', '', checktime_str)
                     
-                    # Parse the cleaned datetime string
+                    # Parse the cleaned datetime string - this gives us the device's actual timestamp
                     checkin_time = datetime.strptime(datetime_clean, '%Y-%m-%dT%H:%M:%S')
                     
-                    frappe.log_error(
-                        message=f"Parsed datetime: '{checktime_str}' → '{checkin_time}' (clean: '{datetime_clean}')",
-                        title="CrossChex Webhook - DateTime Debug"
+                    frappe.logger().info(
+                        f"CrossChex Webhook: Parsed device time '{checktime_str}' to '{checkin_time}' for employee {attn_id_int}"
                     )
                         
                 except Exception as parse_error:
@@ -159,6 +145,10 @@ def create_attendance_log(args):
                     )
             else:
                 checkin_time = datetime.now()
+                frappe.log_error(
+                    message=f"No checktime provided in payload: {json.dumps(i)}", 
+                    title="CrossChex Webhook - Missing checktime"
+                )
             
             # Try to get shift from payload first, then from shift assignment
             shift = None
@@ -166,17 +156,18 @@ def create_attendance_log(args):
                 # Shift provided in payload
                 shift = i.get("device").get("shift")
             else:
-                # Try to find shift from Shift Assignment using employee field (not attendance_device_id)
+                # Try to find shift from Shift Assignment using employee field
                 try:
                     if employee:
                         shift_assignment = frappe.db.get_value(
                             "Shift Assignment",
                             {
-                                "employee": employee,  # Use employee name/ID
-                                "from_date": ("<=", checkin_time.date())
+                                "employee": employee,
+                                "docstatus": 1,
+                                "start_date": ("<=", checkin_time.date())
                             },
                             ["shift_type"],
-                            order_by="from_date desc"
+                            order_by="start_date desc"
                         )
                         if shift_assignment:
                             shift = shift_assignment
@@ -201,9 +192,9 @@ def create_attendance_log(args):
                 )
                 
                 if existing_checkin:
-                    frappe.log_error(
-                        message=f"Skipping duplicate record with UUID {crosschex_uuid}. Employee: {employee}, Time: {checkin_time}",
-                        title="CrossChex Webhook - Duplicate Skipped"
+                    # Log as info, not error - this is expected behavior
+                    frappe.logger().info(
+                        f"CrossChex Webhook: Skipping duplicate record with UUID {crosschex_uuid}. Employee: {employee}, Time: {checkin_time}"
                     )
                     continue  # Skip this record, it's already imported
             
@@ -214,10 +205,13 @@ def create_attendance_log(args):
                 checkin_doc.log_type = log_type
                 checkin_doc.device_id = device_id
                 
-                # Ensure datetime is properly formatted without timezone info
-                # Convert to string format that MySQL accepts
-                checkin_doc.time = checkin_time.strftime('%Y-%m-%d %H:%M:%S')
+                # CRITICAL FIX: Set the time field with the actual device timestamp (datetime object)
+                # Do NOT convert to string - Frappe expects datetime objects for Datetime fields
+                checkin_doc.time = checkin_time
                 checkin_doc.naming_series = 'CKIN/.YY./.MM./.#####'
+                
+                # Always skip ERPNext auto attendance (handled by our custom workflow)
+                checkin_doc.skip_auto_attendance = 1
                 
                 # Set CrossChex UUID if available
                 if i.get("uuid"):
@@ -235,19 +229,14 @@ def create_attendance_log(args):
                     checkin_doc.designation = employee_details.get("designation", "")
                 
                 # Save the document (this will handle all validations and field mappings)
-                frappe.log_error(
-                    message=f"About to insert Employee Checkin with employee: {employee}, time: {checkin_doc.time}, shift: {shift}",
-                    title="CrossChex Webhook - Before Insert"
-                )
-                
                 # Re-enable validation to test our fixes
                 checkin_doc.insert(ignore_permissions=True)
                 frappe.db.commit()
                 created_count += 1
                 
-                frappe.log_error(
-                    message=f"Successfully created checkin {checkin_doc.name} for employee {employee} with UUID {i.get('uuid', 'N/A')}",
-                    title="CrossChex Webhook - Success"
+                # Log success as info, not error
+                frappe.logger().info(
+                    f"CrossChex Webhook: Successfully created checkin {checkin_doc.name} for employee {employee} with UUID {i.get('uuid', 'N/A')}"
                 )
                 
             except Exception as insert_error:

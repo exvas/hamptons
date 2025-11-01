@@ -1,86 +1,68 @@
-// Copyright (c) 2025, Hamptons and contributors
-// For license information, please see license.txt
-
 frappe.ui.form.on('Attendance Regularization', {
 	refresh: function(frm) {
-		// Set indicator based on status
-		if (frm.doc.status === 'Completed') {
-			frm.page.set_indicator(__('Completed'), 'green');
-		} else {
-			frm.page.set_indicator(__('Open'), 'orange');
+		// Add Approve button for Pending status
+		if (frm.doc.status === 'Pending' && !frm.is_new()) {
+			frm.add_custom_button(__('Approve'), function() {
+				frappe.confirm(
+					__('Are you sure you want to approve this regularization request?<br>This will create a Present attendance record.'),
+					function() {
+						frm.call({
+							method: 'approve',
+							doc: frm.doc,
+							callback: function(r) {
+								if (!r.exc) {
+									frm.reload_doc();
+								}
+							}
+						});
+					}
+				);
+			}, __('Actions'));
+			
+			// Add Reject button
+			frm.add_custom_button(__('Reject'), function() {
+				frappe.confirm(
+					__('Are you sure you want to reject this regularization request?<br>This will create an Absent attendance record.'),
+					function() {
+						frm.call({
+							method: 'reject',
+							doc: frm.doc,
+							callback: function(r) {
+								if (!r.exc) {
+									frm.reload_doc();
+								}
+							}
+						});
+					}
+				);
+			}, __('Actions'));
+			
+			// Make Approve button primary (green)
+			frm.page.set_primary_action(__('Approve'), function() {
+				frappe.confirm(
+					__('Are you sure you want to approve this regularization request?<br>This will create a Present attendance record.'),
+					function() {
+						frm.call({
+							method: 'approve',
+							doc: frm.doc,
+							callback: function(r) {
+								if (!r.exc) {
+									frm.reload_doc();
+								}
+							}
+						});
+					}
+				);
+			});
 		}
 		
-		// Show submit button only if document is not yet submitted
-		if (!frm.doc.__islocal && frm.doc.docstatus === 0) {
-			frm.page.set_primary_action(__('Submit'), function() {
-				frm.savesubmit();
-			});
-		}
-	},
-	
-	employee: function(frm) {
-		// Fetch employee details when employee is selected
-		if (frm.doc.employee) {
-			frappe.call({
-				method: 'frappe.client.get',
-				args: {
-					doctype: 'Employee',
-					name: frm.doc.employee
-				},
-				callback: function(r) {
-					if (r.message) {
-						frm.set_value('employee_name', r.message.employee_name);
-						frm.set_value('reports_to', r.message.reports_to);
-					}
-				}
-			});
-		}
-	},
-	
-	shift: function(frm) {
-		// Fetch shift times when shift is selected
-		if (frm.doc.shift) {
-			frappe.call({
-				method: 'frappe.client.get',
-				args: {
-					doctype: 'Shift Type',
-					name: frm.doc.shift
-				},
-				callback: function(r) {
-					if (r.message) {
-						frm.set_value('start_time', r.message.start_time);
-						frm.set_value('end_time', r.message.end_time);
-					}
-				}
-			});
-		}
-	},
-	
-	time: function(frm) {
-		// Calculate late time when time is changed
-		if (frm.doc.time && frm.doc.shift && frm.doc.start_time) {
-			calculate_late_time(frm);
+		// Show indicator based on status
+		if (frm.doc.status === 'Approved') {
+			frm.dashboard.set_headline_alert(__('Approved - Attendance marked as Present'), 'green');
+		} else if (frm.doc.status === 'Rejected') {
+			frm.dashboard.set_headline_alert(__('Rejected - Attendance marked as Absent'), 'red');
+		} else if (frm.doc.status === 'Pending') {
+			frm.dashboard.set_headline_alert(__('Pending Approval'), 'orange');
 		}
 	}
 });
-
-function calculate_late_time(frm) {
-	// Calculate how late the employee was
-	if (frm.doc.log_type === 'IN' && frm.doc.time && frm.doc.start_time) {
-		let check_time = moment(frm.doc.time);
-		let shift_start = moment(frm.doc.time).format('YYYY-MM-DD') + ' ' + frm.doc.start_time;
-		let shift_start_time = moment(shift_start);
-		
-		if (check_time.isAfter(shift_start_time)) {
-			let diff = moment.duration(check_time.diff(shift_start_time));
-			let hours = Math.floor(diff.asHours());
-			let minutes = Math.floor(diff.asMinutes()) % 60;
-			let seconds = Math.floor(diff.asSeconds()) % 60;
-			
-			let late_time = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-			frm.set_value('late', late_time);
-		} else {
-			frm.set_value('late', null);
-		}
-	}
-}

@@ -43,8 +43,11 @@ app_license = "mit"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-# doctype_js = {"doctype" : "public/js/doctype.js"}
-# doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
+doctype_js = {
+	"Employee Checkin" : "public/js/employee_checkin.js",
+	"Attendance Regularization" : "hamptons/hamptons/doctype/attendance_regularization/attendance_regularization.js"
+}
+doctype_list_js = {"Attendance Regularization" : "hamptons/hamptons/doctype/attendance_regularization/attendance_regularization_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
 
@@ -139,24 +142,30 @@ override_doctype_class = {
 
 doc_events = {
 	"Employee Checkin": {
-		"on_submit": "hamptons.overrides.employee_checkin.on_employee_checkin_submit"
+		"after_insert": "hamptons.overrides.employee_checkin.on_employee_checkin_submit"
 	}
 }
 
 # Scheduled Tasks
 # ---------------
-
 scheduler_events = {
 	"cron": {
 		"*/15 * * * *": [
 			"hamptons.hamptons.doctype.crosschex_settings.crosschex_settings.scheduled_attendance_sync"
+		],
+		"0 2 */5 * *": [
+			# Run cleanup every 5 days at 2:00 AM
+			"hamptons.utils.cleanup_old_logs"
+		],
+		"45 23 * * *": [
+			# Consolidate daily checkins into Attendance Regularization at 11:45 PM
+			"hamptons.overrides.employee_checkin.daily_attendance_regularization_job"
 		]
 	},
 	"hourly": [
 		"hamptons.hamptons.doctype.crosschex_settings.crosschex_settings.check_and_refresh_token"
 	]
 }
-
 # scheduler_events = {
 # 	"all": [
 # 		"hamptons.tasks.all"

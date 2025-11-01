@@ -622,9 +622,21 @@ def sync_individual_device(api_url, api_key, config_row_name, config_name=None):
         
         # Step 2: Fetch attendance data
         end_time = datetime.utcnow()
-        # Fetch last 365 days (1 year) of data to capture historical records
-        # For initial sync or catching up on old data
-        begin_time = end_time - timedelta(days=365)
+        # Use last sync time if available, otherwise fetch last 7 days
+        # This prevents re-fetching all historical data on every sync
+        last_sync = config_doc.last_sync_time
+        if last_sync:
+            try:
+                # Fetch from last sync time minus 1 hour (for overlap/safety)
+                begin_time = get_datetime(last_sync) - timedelta(hours=1)
+                # Convert to UTC
+                if begin_time > end_time:
+                    begin_time = end_time - timedelta(days=7)
+            except:
+                begin_time = end_time - timedelta(days=7)
+        else:
+            # Initial sync: get last 30 days of data
+            begin_time = end_time - timedelta(days=30)
         
         begin_time_str = begin_time.strftime("%Y-%m-%dT%H:%M:%S+00:00")
         end_time_str = end_time.strftime("%Y-%m-%dT%H:%M:%S+00:00")
@@ -669,16 +681,12 @@ def sync_individual_device(api_url, api_key, config_row_name, config_name=None):
         
         records = data['payload']['list']
         
-        # Log the API response structure for debugging
-        frappe.log_error(
-            message=f"CrossChex API Response for {config_name or api_url}:\n" +
-                    f"Total records: {len(records)}\n" +
-                    f"Sample record (first): {json.dumps(records[0], indent=2) if records else 'No records'}\n" +
-                    f"Sample record (last): {json.dumps(records[-1], indent=2) if len(records) > 1 else 'Only one record'}\n" +
-                    f"Full response payload keys: {list(data['payload'].keys())}\n" +
-                    f"First record keys: {list(records[0].keys()) if records else 'No keys'}",
-            title="CrossChex Sync - API Response Structure"
-        )
+        # Log sync summary as info (not error)
+        if records:
+            frappe.logger().info(
+                f"CrossChex Sync: Fetched {len(records)} records from {config_name or api_url} "
+                f"(first: {records[0].get('checktime', 'N/A')}, last: {records[-1].get('checktime', 'N/A')})"
+            )
         
         # Step 3: Process attendance records
         processed_count = 0
@@ -731,6 +739,10 @@ def sync_individual_device(api_url, api_key, config_row_name, config_name=None):
                     title="CrossChex Sync - Record Processing Error"
                 )
                 continue
+        
+        # Update last sync time on the config row
+        config_doc.db_set('last_sync_time', now_datetime(), update_modified=False)
+        frappe.db.commit()
         
         return {
             "success": True,
