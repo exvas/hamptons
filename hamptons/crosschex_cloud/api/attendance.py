@@ -120,20 +120,32 @@ def create_attendance_log(args):
             log_type = logMap.get(i.get("checktype", i.get("check_type", 0)), "IN")  # Handle both field names
             device_id = i.get("device", {}).get("name", "") if i.get("device") else ""
             
-            # Parse checktime from ISO format and remove timezone for MySQL compatibility
+            # Parse checktime from CrossChex - preserve device local time
+            # CrossChex API sends UTC timestamps, but devices display in local timezone
+            # We need to add +4 hours to convert from UTC to Asia/Dubai time for display
             checktime_str = i.get("checktime")
             if checktime_str:
                 try:
-                    # Simple regex approach to remove timezone info
-                    import re
-                    # Remove timezone info: +00:00, -05:00, Z, etc.
-                    datetime_clean = re.sub(r'[+-]\d{2}:\d{2}$|Z$', '', checktime_str)
+                    # Parse ISO 8601 with timezone
+                    try:
+                        from dateutil import parser
+                        dt_utc = parser.isoparse(checktime_str)
+                    except Exception:
+                        # Fallback: support 'Z' suffix and basic ISO without offset
+                        s = checktime_str.replace('Z', '+00:00')
+                        dt_utc = datetime.fromisoformat(s)
                     
-                    # Parse the cleaned datetime string - this gives us the device's actual timestamp
-                    checkin_time = datetime.strptime(datetime_clean, '%Y-%m-%dT%H:%M:%S')
+                    # CrossChex API sends UTC time, but we need Dubai local time
+                    # Convert UTC to Asia/Dubai timezone (UTC+4)
+                    from dateutil import tz as _tz
+                    dubai_tz = _tz.gettz('Asia/Dubai')
+                    dt_dubai = dt_utc.astimezone(dubai_tz)
+                    
+                    # Store as naive datetime (strip timezone) so Frappe treats it as system time
+                    checkin_time = dt_dubai.replace(tzinfo=None)
                     
                     frappe.logger().info(
-                        f"CrossChex Webhook: Parsed device time '{checktime_str}' to '{checkin_time}' for employee {attn_id_int}"
+                        f"CrossChex Webhook: Converted UTC '{checktime_str}' to Dubai time '{checkin_time}' for employee {attn_id_int}"
                     )
                         
                 except Exception as parse_error:

@@ -148,9 +148,63 @@ class AttendanceRegularization(Document):
 			)
 			frappe.throw(_("Failed to create attendance: {0}").format(str(e)))
 	
-	def on_trash(self):
-		"""Prevent deletion if already approved or rejected"""
-		if self.status in ["Approved", "Rejected"]:
-			frappe.throw(
-				_("Cannot delete {0} Attendance Regularization").format(self.status)
+	def on_cancel(self):
+		"""Handle cancellation of Attendance Regularization and cancel all linked attendance records"""
+		cancelled_count = 0
+		failed_list = []
+		
+		# Find all attendance records linked to this regularization
+		linked_attendance = frappe.get_all(
+			"Attendance",
+			filters={
+				"custom_attendance_regularization": self.name,
+				"docstatus": 1  # Only submitted records
+			},
+			pluck="name"
+		)
+		
+		# Cancel all linked attendance records
+		for attendance_name in linked_attendance:
+			try:
+				attendance_doc = frappe.get_doc("Attendance", attendance_name)
+				attendance_doc.cancel()
+				cancelled_count += 1
+			except Exception as e:
+				failed_list.append(attendance_name)
+				frappe.log_error(
+					message=str(e),
+					title=f"Failed to cancel Attendance {attendance_name} - {self.name}"
+				)
+		
+		# Show summary message
+		if cancelled_count > 0:
+			frappe.msgprint(
+				_("Successfully cancelled {0} linked Attendance record(s)").format(cancelled_count),
+				indicator="green"
 			)
+		
+		if failed_list:
+			frappe.msgprint(
+				_("Failed to cancel {0} Attendance record(s): {1}").format(len(failed_list), ", ".join(failed_list)),
+				indicator="orange"
+			)
+	
+	def on_trash(self):
+		"""Prevent deletion if submitted and not cancelled"""
+		# Allow deletion only if document is Draft (docstatus=0) or Cancelled (docstatus=2)
+		if self.docstatus == 1:  # Submitted
+			frappe.throw(
+				_("Cannot delete submitted Attendance Regularization. Please cancel it first.")
+			)
+		
+		# If cancelled, check and warn about linked attendance
+		if self.docstatus == 2 and self.attendance:
+			try:
+				attendance_doc = frappe.get_doc("Attendance", self.attendance)
+				if attendance_doc.docstatus == 1:  # Still submitted
+					frappe.throw(
+						_("Cannot delete because linked Attendance {0} is still active. Please cancel it first.").format(self.attendance)
+					)
+			except frappe.DoesNotExistError:
+				# Attendance already deleted, safe to proceed
+				pass
