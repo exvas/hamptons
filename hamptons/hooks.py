@@ -239,6 +239,32 @@ fixtures = [
                 ]
             ]
         ]
+    },
+    {
+        "doctype": "Workspace",
+        "filters": [
+            [
+                "name",
+                "in",
+                [
+                    "Employee Check-in Dashboard"
+                ]
+            ]
+        ]
+    },
+    {
+        "doctype": "Dashboard Chart",
+        "filters": [
+            [
+                "name",
+                "in",
+                [
+                    "Daily Check-ins Overview",
+                    "Department-wise Attendance",
+                    "Check-in Time Distribution"
+                ]
+            ]
+        ]
     }
 ]
 # user_data_fields = [
