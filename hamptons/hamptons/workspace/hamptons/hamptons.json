@@ -17,7 +17,7 @@
    "label": "Check-in Time Distribution"
   }
  ],
- "content": "[{\"id\":\"bfMVbKaoZ7\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Hamptons</span>\",\"col\":12}},{\"id\":\"WWh_KvaFdV\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Employee Checkin Analytics\",\"col\":3}},{\"id\":\"BQVUui5wKF\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"QyTSCbNoIm\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Department-wise Attendance\",\"col\":6}},{\"id\":\"TIVRT-zbBm\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Checkins This Week\",\"col\":6}},{\"id\":\"Ns7rqM8c3W\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Check-in Time Distribution\",\"col\":6}},{\"id\":\"4a0xngdv0A\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Checkins By Type\",\"col\":6}},{\"id\":\"xNiWYQTiEZ\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"5hgFTw22Gn\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Employee Checkin\",\"col\":3}},{\"id\":\"qiPUtG3Hx8\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Attendance\",\"col\":3}},{\"id\":\"3uEZhRiXgU\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Employee Checkin Report\",\"col\":3}},{\"id\":\"V8QR2FzgeN\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Attendance Regularization\",\"col\":3}}]",
+ "content": "[{\"id\":\"bfMVbKaoZ7\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Hamptons</span>\",\"col\":12}},{\"id\":\"WWh_KvaFdV\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Employee Checkin Analytics\",\"col\":3}},{\"id\":\"6qjKaHMwf5\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Organizational Chart\",\"col\":3}},{\"id\":\"BQVUui5wKF\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"QyTSCbNoIm\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Department-wise Attendance\",\"col\":6}},{\"id\":\"TIVRT-zbBm\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Checkins This Week\",\"col\":6}},{\"id\":\"Ns7rqM8c3W\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Check-in Time Distribution\",\"col\":6}},{\"id\":\"4a0xngdv0A\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Checkins By Type\",\"col\":6}},{\"id\":\"xNiWYQTiEZ\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"5hgFTw22Gn\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Employee Checkin\",\"col\":3}},{\"id\":\"qiPUtG3Hx8\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Attendance\",\"col\":3}},{\"id\":\"3uEZhRiXgU\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Employee Checkin Report\",\"col\":3}},{\"id\":\"V8QR2FzgeN\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Attendance Regularization\",\"col\":3}}]",
  "creation": "2025-11-03 08:20:13.396716",
  "custom_blocks": [],
  "docstatus": 0,
@@ -30,7 +30,7 @@
  "is_hidden": 0,
  "label": "Hamptons",
  "links": [],
- "modified": "2025-11-03 11:11:49.574631",
+ "modified": "2025-11-03 12:06:43.888753",
  "modified_by": "Administrator",
  "module": "Hamptons",
  "name": "Hamptons",
@@ -78,6 +78,13 @@
    "doc_view": "List",
    "label": "Employee Checkin Analytics",
    "link_to": "employee-checkin-analytics",
+   "type": "Page"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Organizational Chart",
+   "link_to": "organizational-chart",
    "type": "Page"
   },
   {
