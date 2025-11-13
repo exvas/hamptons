@@ -9,14 +9,18 @@ from frappe.utils import getdate, get_datetime, formatdate, get_time_str
 def execute(filters=None):
 	"""
 	Execute the Employee Checkin Report
-	
+
 	Returns:
 		columns: List of column definitions
 		data: List of data rows
 	"""
+	# Check if Attendance Regularization DocType exists on this site
+	if not frappe.db.exists("DocType", "Attendance Regularization"):
+		frappe.throw(_("Attendance Regularization DocType is not installed on this site"))
+
 	columns = get_columns()
 	data = get_data(filters)
-	
+
 	return columns, data
 
 

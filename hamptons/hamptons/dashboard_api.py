@@ -10,18 +10,22 @@ from frappe.utils import now_datetime, get_datetime, getdate, add_days, formatda
 def get_checkin_dashboard_data(date=None):
 	"""
 	Get comprehensive check-in data for the dashboard
-	
+
 	Args:
 		date: Date to get data for (defaults to today)
-	
+
 	Returns:
 		Dictionary with dashboard data
 	"""
+	# Check if Attendance Regularization DocType exists on this site
+	if not frappe.db.exists("DocType", "Attendance Regularization"):
+		frappe.throw(_("Attendance Regularization DocType is not installed on this site"))
+
 	if not date:
 		date = getdate()
 	else:
 		date = getdate(date)
-	
+
 	# Get today's check-ins with employee details
 	checkins_today = frappe.db.sql("""
 		SELECT 
@@ -141,15 +145,19 @@ def get_checkin_dashboard_data(date=None):
 def get_employee_checkin_details(employee, from_date=None, to_date=None):
 	"""
 	Get detailed check-in information for a specific employee
-	
+
 	Args:
 		employee: Employee ID
 		from_date: Start date (defaults to 7 days ago)
 		to_date: End date (defaults to today)
-	
+
 	Returns:
 		Dictionary with employee check-in details
 	"""
+	# Check if Attendance Regularization DocType exists on this site
+	if not frappe.db.exists("DocType", "Attendance Regularization"):
+		frappe.throw(_("Attendance Regularization DocType is not installed on this site"))
+
 	if not from_date:
 		from_date = add_days(getdate(), -7)
 	else:
