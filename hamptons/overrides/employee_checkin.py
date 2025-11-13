@@ -296,11 +296,19 @@ def on_employee_checkin_submit(doc, method=None):
 	
 	Note: Despite the function name, this runs on 'after_insert' to support
 	automatic checkin creation from CrossChex sync.
-	
+
 	Args:
 		doc: Employee Checkin document
 		method: Method name (not used)
 	"""
+	# Check if Attendance Regularization DocType exists on this site
+	# This prevents errors when hamptons app is present but not installed on all sites
+	if not frappe.db.exists("DocType", "Attendance Regularization"):
+		frappe.logger().info(
+			f"Skipping regularization for {doc.name}: Attendance Regularization DocType not found on this site"
+		)
+		return
+
 	# Check if regularization should be created
 	should_create, reason, late_time = should_create_regularization(doc)
 	
@@ -338,6 +346,13 @@ def daily_attendance_regularization_job():
 	Consolidate daily checkins per employee and create Attendance or Attendance Regularization
 	Runs daily at 11:45 PM via scheduler.
 	"""
+	# Check if Attendance Regularization DocType exists on this site
+	if not frappe.db.exists("DocType", "Attendance Regularization"):
+		frappe.logger().info(
+			"Skipping daily attendance regularization job: DocType not found on this site"
+		)
+		return
+
 	from frappe.utils import getdate
 	consolidate_attendance_for_date(getdate())
 
@@ -347,9 +362,13 @@ def run_attendance_regularization_sync(days: int = 365, include_yesterday: bool 
 	Manually trigger attendance consolidation for a date range.
 	Runs as a background job to avoid timeout.
 	"""
+	# Check if Attendance Regularization DocType exists on this site
+	if not frappe.db.exists("DocType", "Attendance Regularization"):
+		frappe.throw(_("Attendance Regularization DocType is not installed on this site"))
+
 	from frappe.utils import getdate
 	from datetime import timedelta
-	
+
 	# Enqueue the job to run in background
 	frappe.enqueue(
 		'hamptons.overrides.employee_checkin.process_attendance_sync_background',
@@ -425,8 +444,15 @@ def consolidate_attendance_for_date(processing_date):
 	Consolidate checkins for a specific date and create Attendance/Regularization per rules.
 	Returns stats dict.
 	"""
+	# Check if Attendance Regularization DocType exists on this site
+	if not frappe.db.exists("DocType", "Attendance Regularization"):
+		frappe.logger().info(
+			f"Skipping attendance consolidation for {processing_date}: Attendance Regularization DocType not found on this site"
+		)
+		return {"processed": 0, "created": 0, "updated": 0, "errors": 0}
+
 	import json
-	
+
 	# Fetch all checkins for the day
 	rows = frappe.db.sql(
 		"""
