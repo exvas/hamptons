@@ -143,8 +143,9 @@ def get_data(filters):
 	conditions = get_conditions(filters)
 	
 	# Get employee check-ins with aggregated data
+	# Note: If all punches are IN type, we treat the last punch as OUT for reporting purposes
 	data = frappe.db.sql("""
-		SELECT 
+		SELECT
 			DATE(ec.time) as date,
 			ec.employee,
 			ec.employee_name,
@@ -153,20 +154,27 @@ def get_data(filters):
 			sa.shift_type as shift,
 			st.start_time as shift_start,
 			st.end_time as shift_end,
-			MIN(CASE WHEN ec.log_type = 'IN' THEN ec.time END) as first_in,
-			MAX(CASE WHEN ec.log_type = 'OUT' THEN ec.time END) as last_out,
+			MIN(ec.time) as first_in,
+			MAX(CASE WHEN ec.log_type = 'OUT' THEN ec.time
+				ELSE (
+					SELECT MAX(ec2.time)
+					FROM `tabEmployee Checkin` ec2
+					WHERE ec2.employee = ec.employee
+						AND DATE(ec2.time) = DATE(ec.time)
+				)
+			END) as last_out,
 			COUNT(*) as total_checkins,
 			GROUP_CONCAT(DISTINCT ec.device_id ORDER BY ec.time SEPARATOR ', ') as device_id,
 			ar.name as regularization,
 			ar.status as regularization_status
 		FROM `tabEmployee Checkin` ec
 		LEFT JOIN `tabEmployee` emp ON emp.name = ec.employee
-		LEFT JOIN `tabShift Assignment` sa ON sa.employee = ec.employee 
-			AND sa.docstatus = 1 
+		LEFT JOIN `tabShift Assignment` sa ON sa.employee = ec.employee
+			AND sa.docstatus = 1
 			AND sa.start_date <= DATE(ec.time)
 			AND (sa.end_date IS NULL OR sa.end_date >= DATE(ec.time))
 		LEFT JOIN `tabShift Type` st ON st.name = sa.shift_type
-		LEFT JOIN `tabAttendance Regularization` ar ON ar.employee = ec.employee 
+		LEFT JOIN `tabAttendance Regularization` ar ON ar.employee = ec.employee
 			AND ar.posting_date = DATE(ec.time)
 		WHERE 1=1 {conditions}
 		GROUP BY DATE(ec.time), ec.employee
