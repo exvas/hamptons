@@ -234,7 +234,21 @@ fixtures = [
                     "Employee-custom_omani_id",
                     "Employee Checkin-custom_crosschex_uuid",
                     "Employee Checkin-custom_attendance_regularization",
-                    "Attendance-custom_attendance_regularization"
+                    "Attendance-custom_attendance_regularization",
+                    # Leave Policy Custom Fields
+                    "Employee-custom_leave_details_section",
+                    "Employee-custom_nationality",
+                    "Employee-custom_religion",
+                    "Employee-custom_hajj_leave_taken",
+                    "Employee-custom_hajj_leave_date",
+                    "Employee-custom_leave_column_break",
+                    "Employee-custom_leave_carryforward_enabled",
+                    "Employee-custom_max_carryforward_days",
+                    "Leave Type-custom_oman_leave_section",
+                    "Leave Type-custom_gender_specific",
+                    "Leave Type-custom_nationality_specific",
+                    "Leave Type-custom_religion_specific",
+                    "Leave Type-custom_once_in_service"
                 ]
             ]
         ]
