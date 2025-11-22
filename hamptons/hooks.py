@@ -142,6 +142,10 @@ override_doctype_class = {
 doc_events = {
 	"Employee Checkin": {
 		"after_insert": "hamptons.overrides.employee_checkin.on_employee_checkin_submit"
+	},
+	"Leave Allocation": {
+		"validate": "hamptons.overrides.leave_allocation.validate_leave_allocation",
+		"on_submit": "hamptons.overrides.leave_allocation.on_submit_leave_allocation"
 	}
 }
 
