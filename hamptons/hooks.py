@@ -135,6 +135,11 @@ override_doctype_class = {
 	"Department": "hamptons.overrides.department.CustomDepartment"
 }
 
+# App startup hooks
+# ------------------
+after_app_install = "hamptons.overrides.leave_control_panel.override_leave_control_panel"
+app_startup = "hamptons.overrides.leave_control_panel.override_leave_control_panel"
+
 # Document Events
 # ---------------
 # Hook on document methods and events
@@ -145,7 +150,13 @@ doc_events = {
 	},
 	"Leave Allocation": {
 		"validate": "hamptons.overrides.leave_allocation.validate_leave_allocation",
+		"before_insert": "hamptons.overrides.leave_allocation.validate_leave_allocation",
+		"before_submit": "hamptons.overrides.leave_allocation.validate_leave_allocation",
 		"on_submit": "hamptons.overrides.leave_allocation.on_submit_leave_allocation"
+	},
+	"Leave Application": {
+		"on_submit": "hamptons.overrides.leave_application.on_submit_leave_application",
+		"on_cancel": "hamptons.overrides.leave_application.on_cancel_leave_application"
 	}
 }
 
@@ -235,11 +246,15 @@ fixtures = [
                 "name",
                 "in",
                 [
+                    # Employee Custom Fields
                     "Employee-custom_omani_id",
+                    "Employee-custom_report_to_name",
+                    # Employee Checkin Custom Fields
                     "Employee Checkin-custom_crosschex_uuid",
                     "Employee Checkin-custom_attendance_regularization",
+                    # Attendance Custom Fields
                     "Attendance-custom_attendance_regularization",
-                    # Leave Policy Custom Fields
+                    # Leave Policy Custom Fields - Employee
                     "Employee-custom_leave_details_section",
                     "Employee-custom_nationality",
                     "Employee-custom_religion",
@@ -248,6 +263,7 @@ fixtures = [
                     "Employee-custom_leave_column_break",
                     "Employee-custom_leave_carryforward_enabled",
                     "Employee-custom_max_carryforward_days",
+                    # Leave Policy Custom Fields - Leave Type
                     "Leave Type-custom_oman_leave_section",
                     "Leave Type-custom_gender_specific",
                     "Leave Type-custom_nationality_specific",

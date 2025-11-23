@@ -19,14 +19,22 @@ def validate_leave_allocation(doc, method=None):
 		doc: Leave Allocation document
 		method: Method name (not used)
 	"""
-	# Skip if not a new allocation or if being cancelled
+	# Log that validation is being called
+	frappe.logger().debug(f"Validation called for {doc.employee} - {doc.leave_type} via {method}")
+
+	# Skip if being cancelled
 	if doc.docstatus == 2:  # Cancelled
+		return
+
+	# Skip if custom fields don't exist (prevents errors on fresh installs)
+	if not frappe.db.has_column("Employee", "custom_nationality"):
+		frappe.logger().debug("Custom fields don't exist, skipping validation")
 		return
 
 	# Get employee details
 	employee = frappe.get_doc("Employee", doc.employee)
 
-	# Get leave type details
+	# Get leave type details - must use get_doc to ensure custom fields are loaded
 	leave_type = frappe.get_doc("Leave Type", doc.leave_type)
 
 	# Check gender restriction
@@ -84,46 +92,62 @@ def validate_leave_allocation(doc, method=None):
 						employee.name
 					))
 
-	# Check once-in-service restriction (e.g., Hajj Leave)
+	# Check once-in-service restriction (Hajj Leave) - Flexible: Allow re-allocation if not consumed
 	if hasattr(leave_type, "custom_once_in_service") and leave_type.custom_once_in_service:
 		if leave_type.name == "Hajj Leave":
-			# Check if employee has already taken Hajj leave
-			if employee.get("custom_hajj_leave_taken"):
+			# Check if Hajj Leave was actually CONSUMED (Leave Application approved)
+			consumed_leave = frappe.db.sql("""
+				SELECT la.name, la.from_date, la.to_date
+				FROM `tabLeave Application` la
+				WHERE la.employee = %s
+					AND la.leave_type = 'Hajj Leave'
+					AND la.docstatus = 1
+					AND la.status IN ('Approved', 'Open')
+				LIMIT 1
+			""", (doc.employee,), as_dict=1)
+
+			if consumed_leave:
+				# Hajj Leave was actually consumed - block re-allocation
 				frappe.throw(_(
 					"Hajj Leave can only be availed once during service. "
-					"Employee {0} has already taken Hajj Leave on {1}."
+					"Employee {0} has already taken Hajj Leave from {1} to {2}."
 				).format(
 					employee.name,
-					employee.get("custom_hajj_leave_date") or "a previous date"
+					consumed_leave[0].from_date,
+					consumed_leave[0].to_date
 				))
 
-			# Check if there's already an allocation for Hajj Leave
-			existing_allocation = frappe.db.exists("Leave Allocation", {
-				"employee": doc.employee,
-				"leave_type": "Hajj Leave",
-				"docstatus": ["<", 2],  # Not cancelled
-				"name": ["!=", doc.name]  # Exclude current document
-			})
+			# Check if there's an ACTIVE allocation (not expired, not cancelled)
+			from frappe.utils import today, getdate
 
-			if existing_allocation:
+			active_allocation = frappe.db.sql("""
+				SELECT name, from_date, to_date
+				FROM `tabLeave Allocation`
+				WHERE employee = %s
+					AND leave_type = 'Hajj Leave'
+					AND docstatus = 1
+					AND to_date >= %s
+					AND name != %s
+				LIMIT 1
+			""", (doc.employee, today(), doc.name or ''), as_dict=1)
+
+			if active_allocation:
 				frappe.throw(_(
-					"Hajj Leave allocation already exists for employee {0}. "
-					"This leave can only be allocated once during service."
-				).format(employee.name))
+					"Hajj Leave allocation already exists for employee {0} (valid until {1}). "
+					"Cannot create duplicate allocation."
+				).format(employee.name, active_allocation[0].to_date))
 
 
 def on_submit_leave_allocation(doc, method=None):
 	"""
-	Update employee record when Hajj Leave is allocated
+	Placeholder for future logic on Leave Allocation submission
+
+	Note: We no longer mark Hajj Leave as taken when allocated.
+	Instead, it's marked as taken only when Leave Application is approved.
 
 	Args:
 		doc: Leave Allocation document
 		method: Method name (not used)
 	"""
-	if doc.leave_type == "Hajj Leave":
-		# Mark employee as having taken Hajj leave
-		employee = frappe.get_doc("Employee", doc.employee)
-		employee.custom_hajj_leave_taken = 1
-		employee.custom_hajj_leave_date = doc.from_date
-		employee.save(ignore_permissions=True)
-		frappe.db.commit()
+	# No automatic flag setting - employee can still apply for Hajj Leave
+	pass
