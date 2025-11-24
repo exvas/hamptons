@@ -456,7 +456,7 @@ def consolidate_attendance_for_date(processing_date):
 	# Fetch all checkins for the day
 	rows = frappe.db.sql(
 		"""
-		SELECT ec.name, ec.employee, ec.employee_name, ec.time, ec.log_type
+		SELECT ec.name, ec.employee, ec.employee_name, ec.time, ec.log_type, ec.device_id
 		FROM `tabEmployee Checkin` ec
 		WHERE DATE(ec.time) = %s
 		ORDER BY ec.employee, ec.time
@@ -618,6 +618,7 @@ def consolidate_attendance_for_date(processing_date):
 						reg.append("attendance_regularization_item", {
 							"time": c["time"],
 							"log_type": log_type,
+							"device_id": c.get("device_id"),
 							"employee_checkin": c["name"]
 						})
 				reg.insert(ignore_permissions=True)
