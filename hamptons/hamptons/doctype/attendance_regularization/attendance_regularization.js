@@ -18,7 +18,7 @@ frappe.ui.form.on('Attendance Regularization', {
 					}
 				);
 			}, __('Actions'));
-			
+
 			// Add Reject button
 			frm.add_custom_button(__('Reject'), function() {
 				frappe.confirm(
@@ -36,7 +36,7 @@ frappe.ui.form.on('Attendance Regularization', {
 					}
 				);
 			}, __('Actions'));
-			
+
 			// Make Approve button primary (green)
 			frm.page.set_primary_action(__('Approve'), function() {
 				frappe.confirm(
@@ -55,7 +55,7 @@ frappe.ui.form.on('Attendance Regularization', {
 				);
 			});
 		}
-		
+
 		// Show indicator based on status
 		if (frm.doc.status === 'Approved') {
 			frm.dashboard.set_headline_alert(__('Approved - Attendance marked as Present'), 'green');
@@ -63,6 +63,21 @@ frappe.ui.form.on('Attendance Regularization', {
 			frm.dashboard.set_headline_alert(__('Rejected - Attendance marked as Absent'), 'red');
 		} else if (frm.doc.status === 'Pending') {
 			frm.dashboard.set_headline_alert(__('Pending Approval'), 'orange');
+		}
+	},
+
+	// Add Fetch Shift button to manually fetch shift details
+	posting_date: function(frm) {
+		if (frm.doc.employee && frm.doc.posting_date) {
+			frm.call({
+				method: 'fetch_shift_details',
+				doc: frm.doc,
+				callback: function(r) {
+					if (r.message) {
+						frm.refresh_fields();
+					}
+				}
+			});
 		}
 	}
 });

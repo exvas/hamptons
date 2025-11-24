@@ -552,67 +552,26 @@ def consolidate_attendance_for_date(processing_date):
 				frappe.log_error(message=str(e), title="Daily Attendance - Absent/Leave Creation Error")
 			continue
 		
-		# Consolidate: first IN, last OUT
-		first_in = next((c for c in checks if c["log_type"] == "IN"), None)
-		last_out = next((c for c in reversed(checks) if c["log_type"] == "OUT"), None)
+		# Consolidate: Use time-based inference instead of relying on log_type
+		# Many biometric devices mark all checkins as "IN", so we infer from time sequence
+		from hamptons.overrides.attendance_utils import get_first_in_last_out
+		first_in, last_out = get_first_in_last_out(checks, use_inferred=True)
 		
-		# Determine late/early logic
+		# Calculate late/early times using the new utility function
+		from hamptons.overrides.attendance_utils import calculate_late_early_times
+
+		first_in_time = first_in["time"] if first_in else None
+		last_out_time = last_out["time"] if last_out else None
+
+		result = calculate_late_early_times(first_in_time, last_out_time, shift_type, processing_date)
+		needs_regularization = result['needs_regularization']
+		late_time_val = result['late_time']
+
 		late_enabled = bool(getattr(shift_type, "enable_late_entry_marking", False))
-		grace = int(getattr(shift_type, "late_entry_grace_period", 0) or 0)
-		
-		needs_regularization = False
-		late_time_val = None
-		
-		from datetime import datetime, timedelta, time as dt_time
-		from frappe.utils import get_time
-		
-		if first_in:
-			# Check late against shift start + grace
-			# Ensure shift_type.start_time is a time object, not timedelta
-			start_time = shift_type.start_time
-			if isinstance(start_time, timedelta):
-				# Convert timedelta to time (assuming it's seconds from midnight)
-				total_seconds = int(start_time.total_seconds())
-				hours = total_seconds // 3600
-				minutes = (total_seconds % 3600) // 60
-				seconds = total_seconds % 60
-				start_time = get_time(f"{hours:02d}:{minutes:02d}:{seconds:02d}")
-			elif not isinstance(start_time, dt_time):
-				start_time = get_time(start_time)
-			
-			shift_start_dt = datetime.combine(processing_date, start_time)
-			shift_start_dt += timedelta(minutes=grace)
-			first_in_dt = frappe.utils.get_datetime(first_in["time"])
-			if first_in_dt > shift_start_dt:
-				if not late_enabled:
-					needs_regularization = True
-				else:
-					# keep late value for record
-					diff = first_in_dt - shift_start_dt
-					late_time_val = get_time(f"{int(diff.total_seconds()//3600):02d}:{int((diff.total_seconds()%3600)//60):02d}:{int(diff.total_seconds()%60):02d}")
-		
-		if last_out:
-			# Early exit if before end time
-			# Ensure shift_type.end_time is a time object, not timedelta
-			end_time = shift_type.end_time
-			if isinstance(end_time, timedelta):
-				# Convert timedelta to time (assuming it's seconds from midnight)
-				total_seconds = int(end_time.total_seconds())
-				hours = total_seconds // 3600
-				minutes = (total_seconds % 3600) // 60
-				seconds = total_seconds % 60
-				end_time = get_time(f"{hours:02d}:{minutes:02d}:{seconds:02d}")
-			elif not isinstance(end_time, dt_time):
-				end_time = get_time(end_time)
-			
-			shift_end_dt = datetime.combine(processing_date, end_time)
-			last_out_dt = frappe.utils.get_datetime(last_out["time"])
-			if last_out_dt < shift_end_dt:
-				needs_regularization = True
-		
-		# Edge cases: only IN or only OUT
-		if not first_in or not last_out:
-			needs_regularization = True
+
+		# If late entry marking is enabled and only late (not early or missing checkins), auto-mark present
+		if late_enabled and late_time_val and first_in and last_out:
+			needs_regularization = False
 		
 		try:
 			# Avoid duplicates: if Attendance already exists for the date, skip creation
@@ -652,11 +611,13 @@ def consolidate_attendance_for_date(processing_date):
 					"status": "Pending"
 				})
 				# Add items: first IN and last OUT if they exist
+				# Use inferred_log_type if available, otherwise fall back to log_type
 				for c in [first_in, last_out]:
 					if c:
+						log_type = c.get("inferred_log_type", c.get("log_type", "IN"))
 						reg.append("attendance_regularization_item", {
 							"time": c["time"],
-							"log_type": c["log_type"],
+							"log_type": log_type,
 							"employee_checkin": c["name"]
 						})
 				reg.insert(ignore_permissions=True)

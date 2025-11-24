@@ -196,7 +196,7 @@ class AttendanceRegularization(Document):
 			frappe.throw(
 				_("Cannot delete submitted Attendance Regularization. Please cancel it first.")
 			)
-		
+
 		# If cancelled, check and warn about linked attendance
 		if self.docstatus == 2 and self.attendance:
 			try:
@@ -208,3 +208,23 @@ class AttendanceRegularization(Document):
 			except frappe.DoesNotExistError:
 				# Attendance already deleted, safe to proceed
 				pass
+
+	@frappe.whitelist()
+	def fetch_shift_details(self):
+		"""
+		Fetch shift details for the employee on the posting date.
+		This method is called from the client-side to avoid date parsing errors.
+		"""
+		if not self.employee or not self.posting_date:
+			return
+
+		from hamptons.overrides.employee_checkin import get_active_shift_assignment
+
+		shift_assignment = get_active_shift_assignment(self.employee, getdate(self.posting_date))
+		if shift_assignment and shift_assignment.shift_type:
+			shift_type = frappe.get_doc("Shift Type", shift_assignment.shift_type)
+			self.shift = shift_type.name
+			self.start_time = shift_type.start_time
+			self.end_time = shift_type.end_time
+			return True
+		return False
