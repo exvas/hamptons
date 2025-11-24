@@ -1,5 +1,10 @@
 frappe.ui.form.on('Attendance Regularization', {
 	refresh: function(frm) {
+		// Refresh child table to ensure all fields are displayed
+		if (!frm.is_new()) {
+			frm.refresh_field('attendance_regularization_item');
+		}
+
 		// Add Approve button for Pending status
 		if (frm.doc.status === 'Pending' && !frm.is_new()) {
 			frm.add_custom_button(__('Approve'), function() {
@@ -79,5 +84,20 @@ frappe.ui.form.on('Attendance Regularization', {
 				}
 			});
 		}
+	},
+
+	onload: function(frm) {
+		// Ensure child table fields are properly loaded
+		if (!frm.is_new() && frm.doc.attendance_regularization_item) {
+			frm.refresh_field('attendance_regularization_item');
+		}
+	}
+});
+
+// Add child table event handler to ensure fields are displayed
+frappe.ui.form.on('Attendance Regularization Item', {
+	attendance_regularization_item_add: function(frm, cdt, cdn) {
+		// Refresh the row when added
+		frm.refresh_field('attendance_regularization_item');
 	}
 });
