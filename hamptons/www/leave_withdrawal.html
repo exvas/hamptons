@@ -461,7 +461,12 @@ body {
 
 <script>
 let selectedLeave = null;
-let employeeId = null;
+let employeeId = {{ (employee.name | tojson) if employee else 'null' }};
+
+// User info from server context
+const isLoggedIn = {{ is_logged_in | tojson }};
+const currentUser = {{ user | tojson }};
+const employeeInfo = {{ (employee | tojson) if employee else 'null' }};
 
 // Check if already logged in
 document.addEventListener('DOMContentLoaded', function() {
@@ -469,19 +474,11 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function checkLoginStatus() {
-    frappe.call({
-        method: 'frappe.auth.get_logged_user',
-        callback: function(r) {
-            if (r.message && r.message !== 'Guest') {
-                showMainSection(r.message);
-            } else {
-                showLoginSection();
-            }
-        },
-        error: function() {
-            showLoginSection();
-        }
-    });
+    if (isLoggedIn && currentUser !== 'Guest') {
+        showMainSection(currentUser);
+    } else {
+        showLoginSection();
+    }
 }
 
 function showLoginSection() {
@@ -496,27 +493,35 @@ function showMainSection(email) {
     document.getElementById('user-email').textContent = email;
     document.getElementById('user-avatar').textContent = email.charAt(0).toUpperCase();
 
-    // Get employee info
-    frappe.call({
-        method: 'frappe.client.get_value',
-        args: {
-            doctype: 'Employee',
-            filters: { user_id: email },
-            fieldname: ['name', 'employee_name']
-        },
-        callback: function(r) {
-            if (r.message) {
-                employeeId = r.message.name;
-                document.getElementById('user-name').textContent = r.message.employee_name || email;
-                loadWithdrawableLeaves();
-                loadMyRequests();
-            } else {
-                document.getElementById('leaves-loading').classList.add('hidden');
-                document.getElementById('leaves-empty').classList.remove('hidden');
-                document.getElementById('leaves-empty').innerHTML = '<div class="lw-empty-icon">⚠️</div><p>No employee record found for your account</p>';
+    // Use pre-fetched employee info from server context
+    if (employeeInfo) {
+        employeeId = employeeInfo.name;
+        document.getElementById('user-name').textContent = employeeInfo.employee_name || email;
+        loadWithdrawableLeaves();
+        loadMyRequests();
+    } else {
+        // If not available (e.g., after login), fetch it
+        frappe.call({
+            method: 'frappe.client.get_value',
+            args: {
+                doctype: 'Employee',
+                filters: { user_id: email },
+                fieldname: ['name', 'employee_name']
+            },
+            callback: function(r) {
+                if (r.message) {
+                    employeeId = r.message.name;
+                    document.getElementById('user-name').textContent = r.message.employee_name || email;
+                    loadWithdrawableLeaves();
+                    loadMyRequests();
+                } else {
+                    document.getElementById('leaves-loading').classList.add('hidden');
+                    document.getElementById('leaves-empty').classList.remove('hidden');
+                    document.getElementById('leaves-empty').innerHTML = '<div class="lw-empty-icon">⚠️</div><p>No employee record found for your account</p>';
+                }
             }
-        }
-    });
+        });
+    }
 }
 
 // Login form handler
