@@ -153,14 +153,15 @@ class LeaveWithdrawalRequest(Document):
 		frappe.msgprint(_("Leave Application {0} has been cancelled").format(self.leave_application))
 
 	def after_insert(self):
-		"""Cancel leave application and notify HR after withdrawal request is created"""
-		# Immediately cancel the leave application when withdrawal is submitted
-		self.cancel_leave_application()
-		# Update status to reflect the leave has been cancelled
-		frappe.db.set_value("Leave Withdrawal Request", self.name, "status", "Approved")
-		self.status = "Approved"
-		# Notify HR about the withdrawal
-		self.notify_hr()
+		"""Schedule leave application cancellation and HR notification"""
+		# Use enqueue to run cancellation after the transaction is committed
+		frappe.enqueue(
+			"hamptons.hamptons.doctype.leave_withdrawal_request.leave_withdrawal_request.process_withdrawal_request",
+			queue="short",
+			withdrawal_request=self.name,
+			leave_application=self.leave_application,
+			now=True  # Run immediately but in separate transaction
+		)
 
 	def notify_hr(self):
 		"""Send notification to HR about leave withdrawal"""
@@ -307,6 +308,30 @@ class LeaveWithdrawalRequest(Document):
 			)
 		except Exception:
 			pass
+
+
+def process_withdrawal_request(withdrawal_request, leave_application):
+	"""Process leave withdrawal - cancel leave application and notify HR"""
+	try:
+		# Get the withdrawal request document
+		withdrawal_doc = frappe.get_doc("Leave Withdrawal Request", withdrawal_request)
+
+		# Cancel the leave application
+		withdrawal_doc.cancel_leave_application()
+
+		# Update status to Approved
+		frappe.db.set_value("Leave Withdrawal Request", withdrawal_request, "status", "Approved")
+		frappe.db.commit()
+
+		# Notify HR
+		withdrawal_doc.reload()
+		withdrawal_doc.notify_hr()
+
+	except Exception as e:
+		frappe.log_error(
+			title=f"Leave Withdrawal Processing Failed: {withdrawal_request}",
+			message=f"Error processing withdrawal request {withdrawal_request} for leave {leave_application}: {str(e)}\n\n{frappe.get_traceback()}"
+		)
 
 
 @frappe.whitelist()
