@@ -1,0 +1,772 @@
+{% extends "templates/web.html" %}
+
+{% block title %}Leave Withdrawal Request{% endblock %}
+
+{% block head_include %}
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<style>
+:root {
+    --primary-color: #2490EF;
+    --success-color: #28a745;
+    --warning-color: #ffc107;
+    --danger-color: #dc3545;
+    --gray-100: #f8f9fa;
+    --gray-200: #e9ecef;
+    --gray-600: #6c757d;
+    --gray-800: #343a40;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    background-color: #f5f7fa;
+    margin: 0;
+    padding: 0;
+}
+
+.lw-container {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 16px;
+    min-height: 100vh;
+}
+
+.lw-header {
+    text-align: center;
+    padding: 20px 0;
+    margin-bottom: 20px;
+}
+
+.lw-header h1 {
+    font-size: 24px;
+    color: var(--gray-800);
+    margin: 0 0 8px 0;
+}
+
+.lw-header p {
+    color: var(--gray-600);
+    margin: 0;
+    font-size: 14px;
+}
+
+.lw-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    padding: 20px;
+    margin-bottom: 16px;
+}
+
+.lw-card-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--gray-800);
+    margin: 0 0 16px 0;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--gray-200);
+}
+
+.lw-leave-item {
+    padding: 16px;
+    border: 1px solid var(--gray-200);
+    border-radius: 10px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.lw-leave-item:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 2px 8px rgba(36, 144, 239, 0.15);
+}
+
+.lw-leave-item.selected {
+    border-color: var(--primary-color);
+    background-color: rgba(36, 144, 239, 0.05);
+}
+
+.lw-leave-type {
+    font-weight: 600;
+    color: var(--gray-800);
+    font-size: 15px;
+    margin-bottom: 8px;
+}
+
+.lw-leave-dates {
+    color: var(--gray-600);
+    font-size: 13px;
+    margin-bottom: 4px;
+}
+
+.lw-leave-days {
+    display: inline-block;
+    background: var(--gray-100);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    color: var(--gray-600);
+    margin-top: 8px;
+}
+
+.lw-status-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.lw-status-approved {
+    background: rgba(40, 167, 69, 0.1);
+    color: var(--success-color);
+}
+
+.lw-status-pending {
+    background: rgba(255, 193, 7, 0.15);
+    color: #856404;
+}
+
+.lw-form-group {
+    margin-bottom: 16px;
+}
+
+.lw-form-group label {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--gray-800);
+    margin-bottom: 8px;
+}
+
+.lw-form-group textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--gray-200);
+    border-radius: 8px;
+    font-size: 14px;
+    resize: vertical;
+    min-height: 100px;
+    font-family: inherit;
+}
+
+.lw-form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(36, 144, 239, 0.1);
+}
+
+.lw-btn {
+    width: 100%;
+    padding: 14px 20px;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.lw-btn-primary {
+    background: var(--primary-color);
+    color: white;
+}
+
+.lw-btn-primary:hover {
+    background: #1a7fd4;
+}
+
+.lw-btn-primary:disabled {
+    background: var(--gray-200);
+    color: var(--gray-600);
+    cursor: not-allowed;
+}
+
+.lw-btn-outline {
+    background: white;
+    color: var(--gray-600);
+    border: 1px solid var(--gray-200);
+}
+
+.lw-btn-outline:hover {
+    background: var(--gray-100);
+}
+
+.lw-alert {
+    padding: 14px 16px;
+    border-radius: 10px;
+    margin-bottom: 16px;
+    font-size: 14px;
+}
+
+.lw-alert-success {
+    background: rgba(40, 167, 69, 0.1);
+    color: #155724;
+    border: 1px solid rgba(40, 167, 69, 0.2);
+}
+
+.lw-alert-danger {
+    background: rgba(220, 53, 69, 0.1);
+    color: #721c24;
+    border: 1px solid rgba(220, 53, 69, 0.2);
+}
+
+.lw-alert-info {
+    background: rgba(36, 144, 239, 0.1);
+    color: #0c5460;
+    border: 1px solid rgba(36, 144, 239, 0.2);
+}
+
+.lw-empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--gray-600);
+}
+
+.lw-empty-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+}
+
+.lw-loading {
+    text-align: center;
+    padding: 40px;
+}
+
+.lw-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--gray-200);
+    border-top-color: var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 16px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.lw-login-form {
+    margin-top: 20px;
+}
+
+.lw-login-form input {
+    width: 100%;
+    padding: 14px 16px;
+    border: 1px solid var(--gray-200);
+    border-radius: 10px;
+    font-size: 16px;
+    margin-bottom: 12px;
+}
+
+.lw-login-form input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.lw-user-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--gray-100);
+    border-radius: 10px;
+    margin-bottom: 20px;
+}
+
+.lw-user-avatar {
+    width: 40px;
+    height: 40px;
+    background: var(--primary-color);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    font-size: 16px;
+}
+
+.lw-user-details {
+    flex: 1;
+}
+
+.lw-user-name {
+    font-weight: 600;
+    color: var(--gray-800);
+    font-size: 14px;
+}
+
+.lw-user-email {
+    color: var(--gray-600);
+    font-size: 12px;
+}
+
+.lw-logout-btn {
+    padding: 8px 16px;
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--gray-600);
+    cursor: pointer;
+}
+
+.lw-requests-list {
+    margin-top: 20px;
+}
+
+.lw-request-item {
+    padding: 14px;
+    border: 1px solid var(--gray-200);
+    border-radius: 10px;
+    margin-bottom: 10px;
+}
+
+.lw-request-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.lw-request-id {
+    font-weight: 600;
+    color: var(--gray-800);
+    font-size: 13px;
+}
+
+.lw-request-date {
+    font-size: 12px;
+    color: var(--gray-600);
+}
+
+.lw-tab-nav {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.lw-tab-btn {
+    flex: 1;
+    padding: 12px;
+    background: var(--gray-100);
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--gray-600);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.lw-tab-btn.active {
+    background: var(--primary-color);
+    color: white;
+}
+
+.hidden {
+    display: none !important;
+}
+</style>
+{% endblock %}
+
+{% block page_content %}
+<div class="lw-container">
+    <div class="lw-header">
+        <h1>Leave Withdrawal</h1>
+        <p>Request to withdraw your approved leave</p>
+    </div>
+
+    <!-- Login Section -->
+    <div id="login-section" class="lw-card">
+        <h3 class="lw-card-title">Login to Continue</h3>
+        <div id="login-error" class="lw-alert lw-alert-danger hidden"></div>
+        <form id="login-form" class="lw-login-form">
+            <input type="email" id="login-email" placeholder="Email" required>
+            <input type="password" id="login-password" placeholder="Password" required>
+            <button type="submit" class="lw-btn lw-btn-primary">Login</button>
+        </form>
+    </div>
+
+    <!-- Main Content (After Login) -->
+    <div id="main-section" class="hidden">
+        <!-- User Info -->
+        <div class="lw-user-info">
+            <div class="lw-user-avatar" id="user-avatar">U</div>
+            <div class="lw-user-details">
+                <div class="lw-user-name" id="user-name">User</div>
+                <div class="lw-user-email" id="user-email">user@email.com</div>
+            </div>
+            <button class="lw-logout-btn" onclick="logout()">Logout</button>
+        </div>
+
+        <!-- Tab Navigation -->
+        <div class="lw-tab-nav">
+            <button class="lw-tab-btn active" onclick="showTab('new-request')">New Request</button>
+            <button class="lw-tab-btn" onclick="showTab('my-requests')">My Requests</button>
+        </div>
+
+        <!-- New Request Tab -->
+        <div id="new-request-tab">
+            <div class="lw-card">
+                <h3 class="lw-card-title">Select Leave to Withdraw</h3>
+                <div id="leaves-loading" class="lw-loading">
+                    <div class="lw-spinner"></div>
+                    <p>Loading your leaves...</p>
+                </div>
+                <div id="leaves-empty" class="lw-empty hidden">
+                    <div class="lw-empty-icon">📋</div>
+                    <p>No approved leaves available for withdrawal</p>
+                </div>
+                <div id="leaves-list"></div>
+            </div>
+
+            <div id="withdrawal-form" class="lw-card hidden">
+                <h3 class="lw-card-title">Withdrawal Details</h3>
+                <div id="selected-leave-info"></div>
+                <div class="lw-form-group">
+                    <label for="withdrawal-reason">Reason for Withdrawal *</label>
+                    <textarea id="withdrawal-reason" placeholder="Please explain why you want to withdraw this leave..."></textarea>
+                </div>
+                <div id="submit-error" class="lw-alert lw-alert-danger hidden"></div>
+                <div id="submit-success" class="lw-alert lw-alert-success hidden"></div>
+                <button id="submit-btn" class="lw-btn lw-btn-primary" onclick="submitWithdrawal()">
+                    Submit Withdrawal Request
+                </button>
+            </div>
+        </div>
+
+        <!-- My Requests Tab -->
+        <div id="my-requests-tab" class="hidden">
+            <div class="lw-card">
+                <h3 class="lw-card-title">My Withdrawal Requests</h3>
+                <div id="requests-loading" class="lw-loading">
+                    <div class="lw-spinner"></div>
+                    <p>Loading requests...</p>
+                </div>
+                <div id="requests-empty" class="lw-empty hidden">
+                    <div class="lw-empty-icon">📝</div>
+                    <p>No withdrawal requests yet</p>
+                </div>
+                <div id="requests-list"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let selectedLeave = null;
+let employeeId = null;
+
+// Check if already logged in
+document.addEventListener('DOMContentLoaded', function() {
+    checkLoginStatus();
+});
+
+function checkLoginStatus() {
+    frappe.call({
+        method: 'frappe.auth.get_logged_user',
+        callback: function(r) {
+            if (r.message && r.message !== 'Guest') {
+                showMainSection(r.message);
+            } else {
+                showLoginSection();
+            }
+        },
+        error: function() {
+            showLoginSection();
+        }
+    });
+}
+
+function showLoginSection() {
+    document.getElementById('login-section').classList.remove('hidden');
+    document.getElementById('main-section').classList.add('hidden');
+}
+
+function showMainSection(email) {
+    document.getElementById('login-section').classList.add('hidden');
+    document.getElementById('main-section').classList.remove('hidden');
+
+    document.getElementById('user-email').textContent = email;
+    document.getElementById('user-avatar').textContent = email.charAt(0).toUpperCase();
+
+    // Get employee info
+    frappe.call({
+        method: 'frappe.client.get_value',
+        args: {
+            doctype: 'Employee',
+            filters: { user_id: email },
+            fieldname: ['name', 'employee_name']
+        },
+        callback: function(r) {
+            if (r.message) {
+                employeeId = r.message.name;
+                document.getElementById('user-name').textContent = r.message.employee_name || email;
+                loadWithdrawableLeaves();
+                loadMyRequests();
+            } else {
+                document.getElementById('leaves-loading').classList.add('hidden');
+                document.getElementById('leaves-empty').classList.remove('hidden');
+                document.getElementById('leaves-empty').innerHTML = '<div class="lw-empty-icon">⚠️</div><p>No employee record found for your account</p>';
+            }
+        }
+    });
+}
+
+// Login form handler
+document.getElementById('login-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const email = document.getElementById('login-email').value;
+    const password = document.getElementById('login-password').value;
+    const errorDiv = document.getElementById('login-error');
+
+    errorDiv.classList.add('hidden');
+
+    frappe.call({
+        method: 'login',
+        args: {
+            usr: email,
+            pwd: password
+        },
+        callback: function(r) {
+            if (r.message === 'Logged In') {
+                showMainSection(email);
+            }
+        },
+        error: function(r) {
+            errorDiv.textContent = 'Invalid email or password';
+            errorDiv.classList.remove('hidden');
+        }
+    });
+});
+
+function logout() {
+    frappe.call({
+        method: 'logout',
+        callback: function() {
+            window.location.reload();
+        }
+    });
+}
+
+function showTab(tabName) {
+    const tabs = document.querySelectorAll('.lw-tab-btn');
+    tabs.forEach(tab => tab.classList.remove('active'));
+
+    if (tabName === 'new-request') {
+        tabs[0].classList.add('active');
+        document.getElementById('new-request-tab').classList.remove('hidden');
+        document.getElementById('my-requests-tab').classList.add('hidden');
+    } else {
+        tabs[1].classList.add('active');
+        document.getElementById('new-request-tab').classList.add('hidden');
+        document.getElementById('my-requests-tab').classList.remove('hidden');
+        loadMyRequests();
+    }
+}
+
+function loadWithdrawableLeaves() {
+    const loadingDiv = document.getElementById('leaves-loading');
+    const emptyDiv = document.getElementById('leaves-empty');
+    const listDiv = document.getElementById('leaves-list');
+
+    loadingDiv.classList.remove('hidden');
+    emptyDiv.classList.add('hidden');
+    listDiv.innerHTML = '';
+
+    frappe.call({
+        method: 'hamptons.hamptons.doctype.leave_withdrawal_request.leave_withdrawal_request.get_withdrawable_leaves',
+        callback: function(r) {
+            loadingDiv.classList.add('hidden');
+
+            if (r.message && r.message.length > 0) {
+                r.message.forEach(function(leave) {
+                    const item = document.createElement('div');
+                    item.className = 'lw-leave-item';
+                    item.onclick = function() { selectLeave(leave, item); };
+                    item.innerHTML = `
+                        <div class="lw-leave-type">${leave.leave_type}</div>
+                        <div class="lw-leave-dates">${formatDate(leave.from_date)} - ${formatDate(leave.to_date)}</div>
+                        <span class="lw-leave-days">${leave.total_leave_days} day(s)</span>
+                        <span class="lw-status-badge lw-status-approved">Approved</span>
+                    `;
+                    item.dataset.leave = JSON.stringify(leave);
+                    listDiv.appendChild(item);
+                });
+            } else {
+                emptyDiv.classList.remove('hidden');
+            }
+        },
+        error: function() {
+            loadingDiv.classList.add('hidden');
+            emptyDiv.innerHTML = '<div class="lw-empty-icon">❌</div><p>Failed to load leaves</p>';
+            emptyDiv.classList.remove('hidden');
+        }
+    });
+}
+
+function selectLeave(leave, element) {
+    // Remove selection from others
+    document.querySelectorAll('.lw-leave-item').forEach(item => {
+        item.classList.remove('selected');
+    });
+
+    // Select this one
+    element.classList.add('selected');
+    selectedLeave = leave;
+
+    // Show form
+    const formDiv = document.getElementById('withdrawal-form');
+    formDiv.classList.remove('hidden');
+
+    // Update selected leave info
+    document.getElementById('selected-leave-info').innerHTML = `
+        <div class="lw-alert lw-alert-info">
+            <strong>${leave.leave_type}</strong><br>
+            ${formatDate(leave.from_date)} - ${formatDate(leave.to_date)} (${leave.total_leave_days} days)
+        </div>
+    `;
+
+    // Clear previous input
+    document.getElementById('withdrawal-reason').value = '';
+    document.getElementById('submit-error').classList.add('hidden');
+    document.getElementById('submit-success').classList.add('hidden');
+}
+
+function submitWithdrawal() {
+    const reason = document.getElementById('withdrawal-reason').value.trim();
+    const errorDiv = document.getElementById('submit-error');
+    const successDiv = document.getElementById('submit-success');
+    const submitBtn = document.getElementById('submit-btn');
+
+    if (!reason) {
+        errorDiv.textContent = 'Please provide a reason for withdrawal';
+        errorDiv.classList.remove('hidden');
+        return;
+    }
+
+    if (!selectedLeave) {
+        errorDiv.textContent = 'Please select a leave to withdraw';
+        errorDiv.classList.remove('hidden');
+        return;
+    }
+
+    errorDiv.classList.add('hidden');
+    successDiv.classList.add('hidden');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Submitting...';
+
+    frappe.call({
+        method: 'hamptons.hamptons.doctype.leave_withdrawal_request.leave_withdrawal_request.create_withdrawal_request',
+        args: {
+            leave_application: selectedLeave.name,
+            reason: reason
+        },
+        callback: function(r) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Submit Withdrawal Request';
+
+            if (r.message) {
+                successDiv.innerHTML = `
+                    <strong>Success!</strong><br>
+                    ${r.message.message}<br>
+                    Request ID: ${r.message.name}
+                `;
+                successDiv.classList.remove('hidden');
+
+                // Reset form
+                selectedLeave = null;
+                document.querySelectorAll('.lw-leave-item').forEach(item => {
+                    item.classList.remove('selected');
+                });
+                document.getElementById('withdrawal-reason').value = '';
+
+                // Reload leaves
+                setTimeout(function() {
+                    loadWithdrawableLeaves();
+                    document.getElementById('withdrawal-form').classList.add('hidden');
+                }, 2000);
+            }
+        },
+        error: function(r) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Submit Withdrawal Request';
+            errorDiv.textContent = r.message || 'Failed to submit request';
+            errorDiv.classList.remove('hidden');
+        }
+    });
+}
+
+function loadMyRequests() {
+    const loadingDiv = document.getElementById('requests-loading');
+    const emptyDiv = document.getElementById('requests-empty');
+    const listDiv = document.getElementById('requests-list');
+
+    loadingDiv.classList.remove('hidden');
+    emptyDiv.classList.add('hidden');
+    listDiv.innerHTML = '';
+
+    if (!employeeId) {
+        loadingDiv.classList.add('hidden');
+        return;
+    }
+
+    frappe.call({
+        method: 'frappe.client.get_list',
+        args: {
+            doctype: 'Leave Withdrawal Request',
+            filters: { employee: employeeId },
+            fields: ['name', 'leave_type', 'from_date', 'to_date', 'status', 'creation', 'reason'],
+            order_by: 'creation desc',
+            limit_page_length: 20
+        },
+        callback: function(r) {
+            loadingDiv.classList.add('hidden');
+
+            if (r.message && r.message.length > 0) {
+                r.message.forEach(function(req) {
+                    const item = document.createElement('div');
+                    item.className = 'lw-request-item';
+
+                    let statusClass = 'lw-status-pending';
+                    if (req.status === 'Approved') statusClass = 'lw-status-approved';
+                    else if (req.status === 'Rejected') statusClass = 'lw-status-badge';
+
+                    item.innerHTML = `
+                        <div class="lw-request-header">
+                            <span class="lw-request-id">${req.name}</span>
+                            <span class="lw-status-badge ${statusClass}">${req.status}</span>
+                        </div>
+                        <div class="lw-leave-type">${req.leave_type}</div>
+                        <div class="lw-leave-dates">${formatDate(req.from_date)} - ${formatDate(req.to_date)}</div>
+                        <div class="lw-request-date">Requested: ${formatDateTime(req.creation)}</div>
+                    `;
+                    listDiv.appendChild(item);
+                });
+            } else {
+                emptyDiv.classList.remove('hidden');
+            }
+        }
+    });
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function formatDateTime(dateStr) {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+</script>
+{% endblock %}
