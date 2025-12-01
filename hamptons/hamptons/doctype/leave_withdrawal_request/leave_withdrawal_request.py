@@ -116,6 +116,20 @@ class LeaveWithdrawalRequest(Document):
 		if not hr_users:
 			return
 
+		# Filter out system users and invalid email addresses
+		valid_hr_users = []
+		for hr_user in hr_users:
+			user_email = hr_user.parent
+			# Skip system users and non-email usernames
+			if user_email in ["Administrator", "Guest"] or "@" not in user_email:
+				continue
+			# Check if user is enabled
+			if frappe.db.get_value("User", user_email, "enabled"):
+				valid_hr_users.append(hr_user)
+
+		if not valid_hr_users:
+			return
+
 		subject = _("Leave Withdrawn by {0}").format(self.employee_name)
 		message = _("""
 			<p>Employee <b>{employee_name}</b> ({employee}) has withdrawn their leave.</p>
@@ -142,7 +156,7 @@ class LeaveWithdrawalRequest(Document):
 			name=self.name
 		)
 
-		for hr_user in hr_users:
+		for hr_user in valid_hr_users:
 			try:
 				frappe.sendmail(
 					recipients=[hr_user.parent],
@@ -155,7 +169,7 @@ class LeaveWithdrawalRequest(Document):
 				pass  # Continue even if email fails
 
 		# Create notification in system
-		for hr_user in hr_users:
+		for hr_user in valid_hr_users:
 			try:
 				notification = frappe.new_doc("Notification Log")
 				notification.subject = subject
