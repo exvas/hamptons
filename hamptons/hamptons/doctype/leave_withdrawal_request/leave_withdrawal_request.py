@@ -74,11 +74,17 @@ class LeaveWithdrawalRequest(Document):
 			frappe.msgprint(_("Leave Application {0} has been cancelled").format(self.leave_application))
 
 	def after_insert(self):
-		"""Notify HR after withdrawal request is created"""
+		"""Cancel leave application and notify HR after withdrawal request is created"""
+		# Immediately cancel the leave application when withdrawal is submitted
+		self.cancel_leave_application()
+		# Update status to reflect the leave has been cancelled
+		frappe.db.set_value("Leave Withdrawal Request", self.name, "status", "Approved")
+		self.status = "Approved"
+		# Notify HR about the withdrawal
 		self.notify_hr()
 
 	def notify_hr(self):
-		"""Send notification to HR about withdrawal request"""
+		"""Send notification to HR about leave withdrawal"""
 		# Get HR Manager users
 		hr_users = frappe.get_all(
 			"Has Role",
@@ -90,9 +96,9 @@ class LeaveWithdrawalRequest(Document):
 		if not hr_users:
 			return
 
-		subject = _("Leave Withdrawal Request from {0}").format(self.employee_name)
+		subject = _("Leave Withdrawn by {0}").format(self.employee_name)
 		message = _("""
-			<p>Employee <b>{employee_name}</b> ({employee}) has requested to withdraw their leave.</p>
+			<p>Employee <b>{employee_name}</b> ({employee}) has withdrawn their leave.</p>
 			<p><b>Leave Details:</b></p>
 			<ul>
 				<li>Leave Type: {leave_type}</li>
@@ -102,7 +108,8 @@ class LeaveWithdrawalRequest(Document):
 			</ul>
 			<p><b>Reason for Withdrawal:</b></p>
 			<p>{reason}</p>
-			<p><a href="/app/leave-withdrawal-request/{name}">Click here to review</a></p>
+			<p>The leave application <b>{leave_application}</b> has been cancelled and leave balance restored.</p>
+			<p><a href="/app/leave-withdrawal-request/{name}">View Details</a></p>
 		""").format(
 			employee_name=self.employee_name,
 			employee=self.employee,
@@ -111,6 +118,7 @@ class LeaveWithdrawalRequest(Document):
 			to_date=self.to_date,
 			total_leave_days=self.total_leave_days,
 			reason=self.reason,
+			leave_application=self.leave_application,
 			name=self.name
 		)
 
@@ -233,7 +241,7 @@ def create_withdrawal_request(leave_application, reason):
 
 	return {
 		"name": withdrawal.name,
-		"message": _("Withdrawal request submitted successfully. HR will be notified.")
+		"message": _("Leave withdrawn successfully. The leave application has been cancelled and HR has been notified.")
 	}
 
 
