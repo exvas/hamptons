@@ -66,32 +66,91 @@ class LeaveWithdrawalRequest(Document):
 			self.notify_employee_rejected()
 
 	def cancel_leave_application(self):
-		"""Cancel the linked leave application and its related attendance records"""
+		"""Cancel the linked leave application and its related attendance records forcefully"""
 		leave_app = frappe.get_doc("Leave Application", self.leave_application)
-		if leave_app.docstatus == 1:
-			# First, cancel all linked Attendance records
-			attendance_records = frappe.get_all(
-				"Attendance",
+
+		if leave_app.docstatus != 1:
+			return
+
+		# First, cancel all linked Attendance records
+		attendance_records = frappe.get_all(
+			"Attendance",
+			filters={
+				"leave_application": self.leave_application,
+				"docstatus": 1
+			},
+			pluck="name"
+		)
+
+		for att_name in attendance_records:
+			try:
+				att_doc = frappe.get_doc("Attendance", att_name)
+				att_doc.flags.ignore_permissions = True
+				att_doc.flags.ignore_links = True
+				att_doc.flags.ignore_validate = True
+				att_doc.cancel()
+				frappe.db.commit()
+			except Exception as e:
+				# Force cancel via SQL if normal cancel fails
+				frappe.log_error(f"Normal cancel failed for attendance {att_name}: {str(e)}, trying SQL")
+				try:
+					frappe.db.sql("""
+						UPDATE `tabAttendance`
+						SET docstatus = 2
+						WHERE name = %s
+					""", att_name)
+					frappe.db.commit()
+				except Exception as sql_e:
+					frappe.log_error(f"SQL cancel also failed for attendance {att_name}: {str(sql_e)}")
+
+		# Also check for Leave Ledger Entry linked to this leave application
+		try:
+			leave_ledger_entries = frappe.get_all(
+				"Leave Ledger Entry",
 				filters={
-					"leave_application": self.leave_application,
+					"transaction_type": "Leave Application",
+					"transaction_name": self.leave_application,
 					"docstatus": 1
 				},
 				pluck="name"
 			)
-
-			for att_name in attendance_records:
+			for lle_name in leave_ledger_entries:
 				try:
-					att_doc = frappe.get_doc("Attendance", att_name)
-					att_doc.flags.ignore_permissions = True
-					att_doc.cancel()
-				except Exception as e:
-					frappe.log_error(f"Error cancelling attendance {att_name}: {str(e)}")
+					frappe.db.sql("""
+						UPDATE `tabLeave Ledger Entry`
+						SET docstatus = 2
+						WHERE name = %s
+					""", lle_name)
+				except:
+					pass
+			frappe.db.commit()
+		except Exception as e:
+			frappe.log_error(f"Error handling leave ledger entries: {str(e)}")
 
-			# Now cancel the leave application
+		# Now cancel the leave application
+		try:
+			# Reload to get fresh state
+			leave_app.reload()
 			leave_app.flags.ignore_permissions = True
 			leave_app.flags.ignore_links = True
+			leave_app.flags.ignore_validate = True
 			leave_app.cancel()
-			frappe.msgprint(_("Leave Application {0} has been cancelled").format(self.leave_application))
+			frappe.db.commit()
+		except Exception as e:
+			# Force cancel via SQL if normal cancel fails
+			frappe.log_error(f"Normal cancel failed for leave application {self.leave_application}: {str(e)}, trying SQL")
+			try:
+				frappe.db.sql("""
+					UPDATE `tabLeave Application`
+					SET docstatus = 2, status = 'Cancelled'
+					WHERE name = %s
+				""", self.leave_application)
+				frappe.db.commit()
+			except Exception as sql_e:
+				frappe.log_error(f"SQL cancel also failed for leave application: {str(sql_e)}")
+				frappe.throw(_("Failed to cancel Leave Application. Please contact administrator."))
+
+		frappe.msgprint(_("Leave Application {0} has been cancelled").format(self.leave_application))
 
 	def after_insert(self):
 		"""Cancel leave application and notify HR after withdrawal request is created"""
