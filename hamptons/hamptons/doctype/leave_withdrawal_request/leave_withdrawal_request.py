@@ -66,10 +66,30 @@ class LeaveWithdrawalRequest(Document):
 			self.notify_employee_rejected()
 
 	def cancel_leave_application(self):
-		"""Cancel the linked leave application"""
+		"""Cancel the linked leave application and its related attendance records"""
 		leave_app = frappe.get_doc("Leave Application", self.leave_application)
 		if leave_app.docstatus == 1:
+			# First, cancel all linked Attendance records
+			attendance_records = frappe.get_all(
+				"Attendance",
+				filters={
+					"leave_application": self.leave_application,
+					"docstatus": 1
+				},
+				pluck="name"
+			)
+
+			for att_name in attendance_records:
+				try:
+					att_doc = frappe.get_doc("Attendance", att_name)
+					att_doc.flags.ignore_permissions = True
+					att_doc.cancel()
+				except Exception as e:
+					frappe.log_error(f"Error cancelling attendance {att_name}: {str(e)}")
+
+			# Now cancel the leave application
 			leave_app.flags.ignore_permissions = True
+			leave_app.flags.ignore_links = True
 			leave_app.cancel()
 			frappe.msgprint(_("Leave Application {0} has been cancelled").format(self.leave_application))
 
