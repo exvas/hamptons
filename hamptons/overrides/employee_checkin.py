@@ -494,8 +494,11 @@ def consolidate_attendance_for_date(processing_date):
 		
 		# Skip if attendance date is before employee's joining date
 		emp_joining_date = frappe.db.get_value("Employee", emp, "date_of_joining")
-		if emp_joining_date and processing_date < emp_joining_date:
-			continue
+		if emp_joining_date:
+			# Ensure both are date objects for comparison
+			emp_joining_date = getdate(emp_joining_date)
+			if processing_date < emp_joining_date:
+				continue
 		
 		shift_type = frappe.get_doc("Shift Type", shift_type_name)
 		
@@ -569,16 +572,18 @@ def consolidate_attendance_for_date(processing_date):
 
 		late_enabled = bool(getattr(shift_type, "enable_late_entry_marking", False))
 
-		# If late entry marking is enabled and only late (not early or missing checkins), auto-mark present
-		if late_enabled and late_time_val and first_in and last_out:
+		# UPDATED LOGIC: Auto-mark present for ALL employees with valid IN and OUT checkins
+		# If both first_in and last_out exist, mark as Present regardless of late/early times
+		if first_in and last_out:
 			needs_regularization = False
-		
+
 		try:
 			# Avoid duplicates: if Attendance already exists for the date, skip creation
 			existing_att = frappe.db.exists("Attendance", {"employee": emp, "attendance_date": processing_date, "docstatus": ["<", 2]})
 			if existing_att:
 				continue
-			
+
+			# Auto-mark Present if we have both IN and OUT
 			if not needs_regularization and first_in and last_out:
 				# Auto mark Present
 				attendance = frappe.get_doc({

@@ -108,14 +108,14 @@ def get_first_in_last_out(checkins, use_inferred=True, config=None):
             - max_break_hours: Maximum allowed break between checkins
             - strict_log_type: Enforce strict IN/OUT log type matching
             - log_type_strategy: Strategy for log type inference
-                ('alternating', 'time_based', 'location_based', 'duration_based')
+                ('alternating', 'time_based', 'location_based', 'duration_based', 'simple')
             - out_time_strategy: Method for determining final OUT time
                 ('last_out', 'longest_duration', 'shift_end_aligned')
             - debug_logging: Enable detailed debug logging
 
     Returns:
         tuple: (first_in, last_out) checkin dicts or None
-        
+
     Raises:
         ValueError for configuration or data validation errors
     """
@@ -125,11 +125,11 @@ def get_first_in_last_out(checkins, use_inferred=True, config=None):
         'max_break_hours': 12,  # Maximum allowed break between checkins
         'strict_log_type': False,  # Enforce strict log type matching
         'allow_overnight_shifts': True,  # Allow shifts crossing midnight
-        'log_type_strategy': 'time_based',  # Enhanced log type inference strategy
+        'log_type_strategy': 'simple',  # Changed to 'simple' for first=IN, last=OUT
         'out_time_strategy': 'last_out',  # Strategy for determining OUT time
         'debug_logging': False,  # Enable detailed debug logging
     }
-    
+
     # Merge provided config with default
     config = {**default_config, **(config or {})}
 
@@ -142,55 +142,78 @@ def get_first_in_last_out(checkins, use_inferred=True, config=None):
             frappe.logger().warning(f"Insufficient checkins: {len(checkins)} < {config['min_checkins']}")
         return None, None
 
-    # Infer log types using the specified strategy
-    if use_inferred:
-        checkins = infer_log_type_from_sequence(
-            checkins,
-            strategy=config['log_type_strategy']
-        )
+    # SIMPLE STRATEGY: First checkin = IN, Last checkin = OUT
+    if config['log_type_strategy'] == 'simple':
+        # Copy checkins and mark first as IN, last as OUT
+        checkins_copy = []
+        for idx, checkin in enumerate(checkins):
+            checkin_copy = checkin.copy()
+            if idx == 0:
+                checkin_copy['inferred_log_type'] = 'IN'
+            elif idx == len(checkins) - 1:
+                checkin_copy['inferred_log_type'] = 'OUT'
+            else:
+                # Middle checkins keep their original type or alternate
+                checkin_copy['inferred_log_type'] = checkin.get('log_type', 'IN')
+            checkin_copy['original_log_type'] = checkin.get('log_type', 'IN')
+            checkins_copy.append(checkin_copy)
+
+        checkins = checkins_copy
         log_type_field = 'inferred_log_type'
-    else:
-        log_type_field = 'log_type'
 
-    # Find first IN checkin
-    first_in = next(
-        (checkin for checkin in checkins if checkin.get(log_type_field) == 'IN'),
-        None
-    )
-
-    # Advanced OUT time determination
-    if config['out_time_strategy'] == 'last_out':
-        # Default behavior: find last OUT checkin
-        last_out = next(
-            (checkin for checkin in reversed(checkins) if checkin.get(log_type_field) == 'OUT'),
-            None
-        )
-    elif config['out_time_strategy'] == 'longest_duration':
-        # Find OUT checkin that creates the longest working duration
-        last_out = None
-        if first_in:
-            first_in_time = get_datetime(first_in['time'])
-            max_duration = timedelta()
-            for checkin in checkins:
-                if checkin.get(log_type_field) == 'OUT':
-                    out_time = get_datetime(checkin['time'])
-                    duration = out_time - first_in_time
-                    if duration > max_duration:
-                        max_duration = duration
-                        last_out = checkin
-    elif config['out_time_strategy'] == 'shift_end_aligned':
-        # TODO: Implement shift-end aligned OUT time detection
-        # This would require additional context about shift timings
-        last_out = next(
-            (checkin for checkin in reversed(checkins) if checkin.get(log_type_field) == 'OUT'),
-            None
-        )
+        # For simple strategy, first and last are guaranteed
+        first_in = checkins[0] if len(checkins) > 0 else None
+        last_out = checkins[-1] if len(checkins) > 1 else None
     else:
-        # Fallback to default last OUT
-        last_out = next(
-            (checkin for checkin in reversed(checkins) if checkin.get(log_type_field) == 'OUT'),
+        # Infer log types using the specified strategy
+        if use_inferred:
+            checkins = infer_log_type_from_sequence(
+                checkins,
+                strategy=config['log_type_strategy']
+            )
+            log_type_field = 'inferred_log_type'
+        else:
+            log_type_field = 'log_type'
+
+        # Find first IN checkin
+        first_in = next(
+            (checkin for checkin in checkins if checkin.get(log_type_field) == 'IN'),
             None
         )
+
+        # Advanced OUT time determination
+        if config['out_time_strategy'] == 'last_out':
+            # Default behavior: find last OUT checkin
+            last_out = next(
+                (checkin for checkin in reversed(checkins) if checkin.get(log_type_field) == 'OUT'),
+                None
+            )
+        elif config['out_time_strategy'] == 'longest_duration':
+            # Find OUT checkin that creates the longest working duration
+            last_out = None
+            if first_in:
+                first_in_time = get_datetime(first_in['time'])
+                max_duration = timedelta()
+                for checkin in checkins:
+                    if checkin.get(log_type_field) == 'OUT':
+                        out_time = get_datetime(checkin['time'])
+                        duration = out_time - first_in_time
+                        if duration > max_duration:
+                            max_duration = duration
+                            last_out = checkin
+        elif config['out_time_strategy'] == 'shift_end_aligned':
+            # TODO: Implement shift-end aligned OUT time detection
+            # This would require additional context about shift timings
+            last_out = next(
+                (checkin for checkin in reversed(checkins) if checkin.get(log_type_field) == 'OUT'),
+                None
+            )
+        else:
+            # Fallback to default last OUT
+            last_out = next(
+                (checkin for checkin in reversed(checkins) if checkin.get(log_type_field) == 'OUT'),
+                None
+            )
 
     # Strict log type validation
     if config['strict_log_type']:

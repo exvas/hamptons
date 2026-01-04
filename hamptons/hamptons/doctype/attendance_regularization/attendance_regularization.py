@@ -8,12 +8,51 @@ from frappe.utils import getdate
 
 
 class AttendanceRegularization(Document):
+	def validate(self):
+		"""Auto-approve or reject based on status field"""
+		# Only auto-process if status changed and doc is draft
+		if self.docstatus != 0:
+			return
+
+		# Check if status was changed in this save
+		if self.has_value_changed("status"):
+			old_status = self.get_doc_before_save().status if self.get_doc_before_save() else None
+
+			# Auto-approve if manually changed to Approved
+			if self.status == "Approved" and old_status != "Approved":
+				# Set flag to trigger approval after save
+				self._needs_auto_approval = True
+
+			# Auto-reject if manually changed to Rejected
+			elif self.status == "Rejected" and old_status != "Rejected":
+				# Set flag to trigger rejection after save
+				self._needs_auto_rejection = True
+
+	def on_update(self):
+		"""Handle auto-approval/rejection after save"""
+		if getattr(self, '_needs_auto_approval', False):
+			frappe.enqueue(
+				'hamptons.hamptons.doctype.attendance_regularization.attendance_regularization.auto_approve_regularization',
+				queue='short',
+				timeout=300,
+				regularization_name=self.name,
+				now=frappe.flags.in_test
+			)
+		elif getattr(self, '_needs_auto_rejection', False):
+			frappe.enqueue(
+				'hamptons.hamptons.doctype.attendance_regularization.attendance_regularization.auto_reject_regularization',
+				queue='short',
+				timeout=300,
+				regularization_name=self.name,
+				now=frappe.flags.in_test
+			)
+
 	@frappe.whitelist()
 	def approve(self):
 		"""Approve the regularization request and create Present attendance"""
-		if self.status != "Pending":
-			frappe.throw(_("Only Pending requests can be approved"))
-		
+		if self.status not in ("Pending", "Approved"):
+			frappe.throw(_("Only Pending or Approved requests can be approved"))
+
 		if self.docstatus != 0:
 			frappe.throw(_("Only draft documents can be approved"))
 		
@@ -81,9 +120,9 @@ class AttendanceRegularization(Document):
 	@frappe.whitelist()
 	def reject(self):
 		"""Reject the regularization request and create Absent attendance"""
-		if self.status != "Pending":
-			frappe.throw(_("Only Pending requests can be rejected"))
-		
+		if self.status not in ("Pending", "Rejected"):
+			frappe.throw(_("Only Pending or Rejected requests can be rejected"))
+
 		if self.docstatus != 0:
 			frappe.throw(_("Only draft documents can be rejected"))
 		
@@ -228,3 +267,119 @@ class AttendanceRegularization(Document):
 			self.end_time = shift_type.end_time
 			return True
 		return False
+
+
+def auto_approve_regularization(regularization_name):
+	"""
+	Background job to auto-approve a regularization.
+	Called when status is manually changed to 'Approved'.
+	"""
+	try:
+		doc = frappe.get_doc("Attendance Regularization", regularization_name)
+
+		# Double-check it's still in draft and Approved status
+		if doc.docstatus == 0 and doc.status == "Approved":
+			# Check if attendance already exists
+			attendance_date = getdate(doc.posting_date)
+			existing_attendance = frappe.db.exists(
+				"Attendance",
+				{
+					"employee": doc.employee,
+					"attendance_date": attendance_date,
+					"docstatus": ["<", 2]
+				}
+			)
+
+			if existing_attendance:
+				frappe.log_error(
+					message=f"Attendance already exists for {doc.employee_name} on {attendance_date}",
+					title=f"Auto-Approval Skipped - {regularization_name}"
+				)
+				return
+
+			# Create Present attendance
+			attendance = frappe.get_doc({
+				"doctype": "Attendance",
+				"employee": doc.employee,
+				"employee_name": doc.employee_name,
+				"attendance_date": attendance_date,
+				"shift": doc.shift,
+				"status": "Present",
+				"custom_attendance_regularization": doc.name,
+				"company": frappe.defaults.get_user_default("Company")
+			})
+
+			attendance.insert(ignore_permissions=True)
+			attendance.submit()
+
+			# Update regularization
+			doc.attendance = attendance.name
+			doc.submit()
+			frappe.db.commit()
+
+			frappe.logger().info(
+				f"Auto-approved regularization {regularization_name} and created attendance {attendance.name}"
+			)
+	except Exception as e:
+		frappe.log_error(
+			message=str(e),
+			title=f"Auto-Approval Failed - {regularization_name}"
+		)
+
+
+def auto_reject_regularization(regularization_name):
+	"""
+	Background job to auto-reject a regularization.
+	Called when status is manually changed to 'Rejected'.
+	"""
+	try:
+		doc = frappe.get_doc("Attendance Regularization", regularization_name)
+
+		# Double-check it's still in draft and Rejected status
+		if doc.docstatus == 0 and doc.status == "Rejected":
+			# Check if attendance already exists
+			attendance_date = getdate(doc.posting_date)
+			existing_attendance = frappe.db.exists(
+				"Attendance",
+				{
+					"employee": doc.employee,
+					"attendance_date": attendance_date,
+					"docstatus": ["<", 2]
+				}
+			)
+
+			if existing_attendance:
+				frappe.log_error(
+					message=f"Attendance already exists for {doc.employee_name} on {attendance_date}",
+					title=f"Auto-Rejection Skipped - {regularization_name}"
+				)
+				return
+
+			# Create Absent attendance
+			attendance = frappe.get_doc({
+				"doctype": "Attendance",
+				"employee": doc.employee,
+				"employee_name": doc.employee_name,
+				"attendance_date": attendance_date,
+				"shift": doc.shift,
+				"status": "Absent",
+				"custom_attendance_regularization": doc.name,
+				"company": frappe.defaults.get_user_default("Company")
+			})
+
+			attendance.insert(ignore_permissions=True)
+			attendance.submit()
+
+			# Update regularization
+			doc.attendance = attendance.name
+			doc.submit()
+			frappe.db.commit()
+
+			frappe.logger().info(
+				f"Auto-rejected regularization {regularization_name} and created attendance {attendance.name}"
+			)
+	except Exception as e:
+		frappe.log_error(
+			message=str(e),
+			title=f"Auto-Rejection Failed - {regularization_name}"
+		)
