@@ -300,7 +300,7 @@ def get_data(filters):
             END as original_working_hours,
             0 as late_entry,
             0 as early_exit,
-            'Present' as original_status,
+            NULL as original_status,
             '' as attendance_leave_type,
             '' as attendance_reference,
             0 as ot1,
@@ -808,14 +808,21 @@ def get_data(filters):
         elif row['original_status'] is None:
             # No attendance record - check if there's a leave application for this date - O(1) lookup
             leave_type_found = leave_lookup.get((row['employee_id'], row['date']))
-            
+
             if leave_type_found:
                 row['status'] = format_attendance_status(leave_type_found)
                 row['leave_type'] = leave_type_found
             else:
-                # No leave application, mark as Absent
-                row['status'] = format_attendance_status('Absent')
-                row['leave_type'] = ''
+                # Check if there are checkins but no attendance (pending consolidation)
+                has_checkins = row.get('in_time') or row.get('employee_checkin_references')
+                if has_checkins:
+                    # Has checkins but no attendance record yet - mark as Pending
+                    row['status'] = format_attendance_status('Pending')
+                    row['leave_type'] = ''
+                else:
+                    # No checkins and no leave application, mark as Absent
+                    row['status'] = format_attendance_status('Absent')
+                    row['leave_type'] = ''
         else:
             # For other statuses (Absent, etc.)
             if row['attendance_leave_type'] and row['attendance_leave_type'].strip():
@@ -885,6 +892,7 @@ def format_attendance_status(status):
         'PR': '<span style="color: green; font-weight: bold;">Present</span>',
         'Present': '<span style="color: green; font-weight: bold;">Present</span>',
         'Absent': '<span style="color: red; font-weight: bold;">Absent</span>',
+        'Pending': '<span style="color: orange; font-weight: bold;">Pending</span>',
         'Holiday': '<span style="color: purple; font-weight: bold;">Holiday</span>',
         'Mis-Punch': '<span style="color: orange; font-weight: bold;">Mis-Punch</span>',
         'On Leave': '<span style="color: blue; font-weight: bold;">On Leave</span>',
