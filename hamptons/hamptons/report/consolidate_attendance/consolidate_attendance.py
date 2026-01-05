@@ -819,6 +819,9 @@ def get_data(filters):
                     # Has checkins but no attendance record yet - mark as Pending
                     row['status'] = format_attendance_status('Pending')
                     row['leave_type'] = ''
+                    # Clear out_time if it's the same as in_time (single checkin)
+                    if row.get('in_time') and row.get('out_time') and row.get('in_time') == row.get('out_time'):
+                        row['out_time'] = ''
                 else:
                     # No checkins and no leave application, mark as Absent
                     row['status'] = format_attendance_status('Absent')
