@@ -156,6 +156,7 @@ doc_events = {
 		"on_submit": "hamptons.overrides.leave_allocation.on_submit_leave_allocation"
 	},
 	"Leave Application": {
+		"validate": "hamptons.overrides.leave_application.validate_leave_application",
 		"on_submit": "hamptons.overrides.leave_application.on_submit_leave_application",
 		"on_cancel": "hamptons.overrides.leave_application.on_cancel_leave_application"
 	}
