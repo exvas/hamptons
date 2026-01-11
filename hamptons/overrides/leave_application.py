@@ -13,29 +13,28 @@ from frappe.utils import getdate, add_days, today
 
 def validate_leave_application(doc, method=None):
 	"""
-	Validate Leave Application - enforce 2 weeks advance notice requirement for Annual Leave
+	Validate Leave Application - show warning for Annual Leave without 2 weeks advance notice
 
 	Args:
 		doc: Leave Application document
 		method: Method name (not used)
 	"""
-	# Only enforce 2 weeks advance notice for Annual Leave
+	# Show warning message for Annual Leave without 2 weeks advance notice
 	if doc.leave_type == "Annual Leave" and doc.from_date:
 		minimum_from_date = add_days(today(), 14)
 		leave_start_date = getdate(doc.from_date)
 
 		if leave_start_date < getdate(minimum_from_date):
 			days_diff = (getdate(minimum_from_date) - leave_start_date).days
-			frappe.throw(
-				_("Annual Leave must be submitted at least 2 weeks in advance. "
-				  "Your selected start date is {0}, which is {1} day(s) before the minimum allowed date of {2}. "
-				  "Please select a start date on or after {3}.").format(
+			frappe.msgprint(
+				_("Note: Annual Leave should ideally be submitted at least 2 weeks in advance. "
+				  "Your selected start date is {0}, which is {1} day(s) before the recommended date of {2}.").format(
 					frappe.format(leave_start_date, {"fieldtype": "Date"}),
 					days_diff,
-					frappe.format(minimum_from_date, {"fieldtype": "Date"}),
 					frappe.format(minimum_from_date, {"fieldtype": "Date"})
 				),
-				title=_("2 Weeks Advance Notice Required for Annual Leave")
+				title=_("Early Notice Recommended for Annual Leave"),
+				indicator="orange"
 			)
 
 

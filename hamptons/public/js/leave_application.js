@@ -118,20 +118,19 @@ function check_leave_advance_notice(frm) {
             const days_diff = frappe.datetime.get_day_diff(leave_start, today);
             const days_text = days_diff === 1 ? __('day') : __('days');
 
-            // Show error message at the top of the form (persistent)
+            // Show warning message at the top of the form (persistent)
             frm.dashboard.set_headline_alert(
-                __('Error: Annual Leave must be applied at least 2 weeks in advance. Your leave starts in {0} {1}.',
+                __('Note: Annual Leave should ideally be applied at least 2 weeks in advance. Your leave starts in {0} {1}.',
                     [days_diff, days_text]),
-                'red'
+                'orange'
             );
 
-            // Show a prominent error banner above the form
+            // Show a prominent warning banner above the form
             frm.set_intro(
-                __('Invalid Date: Annual Leave applications must be submitted at least 2 weeks in advance. Your selected start date is {0}, but the minimum allowed date is {1}. Please select a date on or after {2}.',
+                __('Recommendation: Annual Leave applications should be submitted at least 2 weeks in advance. Your selected start date is {0}, but the recommended date is {1} or later.',
                     [frappe.datetime.str_to_user(leave_start),
-                     frappe.datetime.str_to_user(minimum_date),
                      frappe.datetime.str_to_user(minimum_date)]),
-                'red'
+                'orange'
             );
         } else {
             // Clear the intro message if leave is 2+ weeks away
