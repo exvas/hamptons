@@ -157,8 +157,18 @@ doc_events = {
 	},
 	"Leave Application": {
 		"validate": "hamptons.overrides.leave_application.validate_leave_application",
+		"on_update": "hamptons.overrides.leave_application.on_update_leave_application",
 		"on_submit": "hamptons.overrides.leave_application.on_submit_leave_application",
 		"on_cancel": "hamptons.overrides.leave_application.on_cancel_leave_application"
+	},
+	"Shift Assignment": {
+		"before_insert": "hamptons.overrides.shift_assignment.before_insert_shift_assignment"
+	},
+	"Attendance Regularization": {
+		"after_insert": "hamptons.overrides.attendance_regularization.after_insert_attendance_regularization"
+	},
+	"Attendance Request": {
+		"on_update": "hamptons.overrides.attendance_request.on_update_attendance_request"
 	}
 }
 
