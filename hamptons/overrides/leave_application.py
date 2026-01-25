@@ -12,6 +12,35 @@ from frappe import _
 from frappe.utils import getdate, add_days, today, get_url_to_form
 
 
+@frappe.whitelist()
+def is_hod_or_hr_manager(employee):
+	"""
+	Check if an employee is a HOD or HR Manager
+
+	Args:
+		employee: Employee ID
+
+	Returns:
+		Boolean - True if employee has HOD role OR HR Manager designation
+	"""
+	if not employee:
+		return False
+
+	# Check if HR Manager by designation
+	designation = frappe.db.get_value("Employee", employee, "designation")
+	if designation == "HR Manager":
+		return True
+
+	# Check if has HOD role
+	user_id = frappe.db.get_value("Employee", employee, "user_id")
+	if user_id:
+		has_hod_role = frappe.db.exists("Has Role", {"parent": user_id, "role": "HOD"})
+		if has_hod_role:
+			return True
+
+	return False
+
+
 def validate_leave_application(doc, method=None):
 	"""
 	Validate Leave Application - show warning for Annual Leave without 2 weeks advance notice
@@ -157,6 +186,16 @@ def on_update_leave_application(doc, method=None):
 	elif workflow_state == "Rejected HR":
 		# Notify employee that HR has rejected
 		send_notification_to_employee(employee_email, employee_name, context, "hr_rejected")
+
+	elif workflow_state == "Approved GM":
+		# Notify employee that GM has approved their leave
+		send_notification_to_employee(employee_email, employee_name, context, "gm_approved")
+		# Also notify HR Manager for information
+		send_notification_to_role(doc, "Hr Approver", context, "gm_approved_info")
+
+	elif workflow_state == "Rejected GM":
+		# Notify employee that GM has rejected
+		send_notification_to_employee(employee_email, employee_name, context, "gm_rejected")
 
 
 def send_notification_to_role(doc, role, context, notification_type):
@@ -385,6 +424,55 @@ def get_notification_content(notification_type, context):
 				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Status:</strong></td><td style="padding: 8px; border: 1px solid #ddd; color: red;">Rejected by HR</td></tr>
 			</table>
 			<p>Please contact HR for more information.</p>
+			<p style="margin-top: 20px;"><a href="{leave_url}" style="background-color: #f44336; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Leave Application</a></p>
+		""").format(**context)
+
+	elif notification_type == "gm_approved":
+		subject = _("Your Leave Application - Approved by GM")
+		message = _("""
+			<h3>Leave Application Approved</h3>
+			<p>Dear {employee_name},</p>
+			<p>Congratulations! Your leave application has been <strong style="color: green;">approved by the General Manager</strong>.</p>
+			<table style="border-collapse: collapse; width: 100%; max-width: 500px;">
+				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Leave Type:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{leave_type}</td></tr>
+				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>From Date:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{from_date}</td></tr>
+				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>To Date:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{to_date}</td></tr>
+				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Total Days:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{total_days}</td></tr>
+				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Status:</strong></td><td style="padding: 8px; border: 1px solid #ddd; color: green;">Approved by GM</td></tr>
+			</table>
+			<p style="margin-top: 20px;"><a href="{leave_url}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Leave Application</a></p>
+		""").format(**context)
+
+	elif notification_type == "gm_approved_info":
+		subject = _("Leave Application Approved by GM - {0}").format(context["employee_name"])
+		message = _("""
+			<h3>Leave Application Approved by GM</h3>
+			<p>Dear HR Team,</p>
+			<p>A leave application from <strong>{employee_name}</strong> ({employee_id}) has been approved by the General Manager.</p>
+			<table style="border-collapse: collapse; width: 100%; max-width: 500px;">
+				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Leave Type:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{leave_type}</td></tr>
+				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>From Date:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{from_date}</td></tr>
+				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>To Date:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{to_date}</td></tr>
+				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Total Days:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{total_days}</td></tr>
+				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Status:</strong></td><td style="padding: 8px; border: 1px solid #ddd; color: green;">Approved by GM</td></tr>
+			</table>
+			<p style="margin-top: 20px;"><a href="{leave_url}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Leave Application</a></p>
+		""").format(**context)
+
+	elif notification_type == "gm_rejected":
+		subject = _("Your Leave Application - Rejected by GM")
+		message = _("""
+			<h3>Leave Application Rejected</h3>
+			<p>Dear {employee_name},</p>
+			<p>We regret to inform you that your leave application has been <strong style="color: red;">rejected by the General Manager</strong>.</p>
+			<table style="border-collapse: collapse; width: 100%; max-width: 500px;">
+				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Leave Type:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{leave_type}</td></tr>
+				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>From Date:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{from_date}</td></tr>
+				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>To Date:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{to_date}</td></tr>
+				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Total Days:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{total_days}</td></tr>
+				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Status:</strong></td><td style="padding: 8px; border: 1px solid #ddd; color: red;">Rejected by GM</td></tr>
+			</table>
+			<p>Please contact the General Manager for more information.</p>
 			<p style="margin-top: 20px;"><a href="{leave_url}" style="background-color: #f44336; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Leave Application</a></p>
 		""").format(**context)
 
