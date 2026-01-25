@@ -310,13 +310,6 @@ def calculate_late_early_times(first_in_time, last_out_time, shift_type, process
 		else:
 			first_in_dt = first_in_time
 
-		# DEBUG LOGGING
-		frappe.logger().info(f"LATE CALC DEBUG - Processing Date: {processing_date}, Shift Start: {start_time}, Grace: {grace}")
-		frappe.logger().info(f"LATE CALC DEBUG - first_in_time type: {type(first_in_time)}, value: {first_in_time}")
-		frappe.logger().info(f"LATE CALC DEBUG - first_in_dt: {first_in_dt}")
-		frappe.logger().info(f"LATE CALC DEBUG - shift_start_dt: {shift_start_dt}")
-		frappe.logger().info(f"LATE CALC DEBUG - Comparison: {first_in_dt} > {shift_start_dt} = {first_in_dt > shift_start_dt}")
-
 		# Only calculate late time if employee actually arrived late
 		if first_in_dt > shift_start_dt:
 			needs_regularization = True
@@ -327,9 +320,6 @@ def calculate_late_early_times(first_in_time, last_out_time, shift_type, process
 				minutes = int((diff.total_seconds() % 3600) // 60)
 				seconds = int(diff.total_seconds() % 60)
 				late_time = get_time(f"{hours:02d}:{minutes:02d}:{seconds:02d}")
-				frappe.logger().info(f"LATE CALC DEBUG - Calculated late_time: {late_time} (diff: {diff})")
-		else:
-			frappe.logger().info(f"LATE CALC DEBUG - Employee is ON TIME or EARLY, no late_time set")
 
 	# Check early exit
 	if last_out_time:
