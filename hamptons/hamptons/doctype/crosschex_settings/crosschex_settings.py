@@ -15,36 +15,22 @@ class CrosschexSettings(Document):
     def validate(self):
         """Validate CrossChex Settings before saving"""
         if self.enable_realtime_sync:
-            # Check if either multi-device config or legacy config is set
+            # Check if multi-device config is set
             has_multi_device_config = self.api_configurations and len(self.api_configurations) > 0
-            has_legacy_config = self.api_key and self.api_secret and self.api_url
-            
-            if not has_multi_device_config and not has_legacy_config:
-                frappe.throw("Either configure API Configurations table or legacy API settings when sync is enabled")
-            
-            # Validate each API configuration entry if multi-device mode is used
-            if has_multi_device_config:
-                for idx, config in enumerate(self.api_configurations, start=1):
-                    if not config.api_url:
-                        frappe.throw(f"API URL is required for configuration row {idx}")
-                    if not config.api_key:
-                        frappe.throw(f"API Key is required for configuration row {idx}")
-                    if not config.get_password('api_secret'):
-                        frappe.throw(f"API Secret is required for configuration row {idx}")
-            
-            # Only validate legacy config if no multi-device config exists
-            elif has_legacy_config:
-                if not self.api_key:
-                    frappe.throw("API Key is required for legacy configuration")
-                if not self.api_secret:
-                    frappe.throw("API Secret is required for legacy configuration")
-                if not self.api_url:
-                    frappe.throw("API URL is required for legacy configuration")
-        
+
+            if not has_multi_device_config:
+                frappe.throw("Please configure at least one API Configuration when realtime sync is enabled")
+
+            # Validate each API configuration entry
+            for idx, config in enumerate(self.api_configurations, start=1):
+                if not config.api_url:
+                    frappe.throw(f"API URL is required for configuration row {idx}")
+                if not config.api_key:
+                    frappe.throw(f"API Key is required for configuration row {idx}")
+                if not config.get_password('api_secret'):
+                    frappe.throw(f"API Secret is required for configuration row {idx}")
+
         # Ensure API URL ends with / for all configurations
-        if self.api_url and not self.api_url.endswith('/'):
-            self.api_url += '/'
-        
         if self.api_configurations:
             for config in self.api_configurations:
                 if config.api_url and not config.api_url.endswith('/'):

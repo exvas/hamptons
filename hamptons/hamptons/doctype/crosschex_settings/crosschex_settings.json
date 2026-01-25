@@ -7,10 +7,6 @@
  "field_order": [
   "basic_settings_tab",
   "api_configurations",
-  "section_break_legacy",
-  "api_url",
-  "api_key",
-  "api_secret",
   "column_break_rnih",
   "enable_realtime_sync",
   "sync_frequency",
@@ -24,12 +20,6 @@
   "token",
   "token_expires",
   "last_token_generated",
-  "section_break_controls",
-  "test_connection_btn",
-  "sync_now_btn",
-  "column_break_controls",
-  "clear_logs_btn",
-  "reset_token_btn",
   "advanced_tab",
   "section_break_advanced",
   "timezone",
@@ -45,36 +35,11 @@
    "label": "Basic Settings"
   },
   {
+   "description": "Configure multiple CrossChex Cloud API connections for different regions (US, EU, etc.)",
    "fieldname": "api_configurations",
    "fieldtype": "Table",
    "label": "API Configurations",
-   "options": "CrossChex API Configuration",
-   "description": "Configure multiple CrossChex Cloud API connections for different regions (US, EU, etc.)"
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "section_break_legacy",
-   "fieldtype": "Section Break",
-   "label": "Legacy Single Configuration (Deprecated)"
-  },
-  {
-   "default": "https://api.us.crosschexcloud.com/",
-   "fieldname": "api_url",
-   "fieldtype": "Data",
-   "label": "API URL",
-   "description": "Deprecated: Use API Configurations table above for multi-device support"
-  },
-  {
-   "fieldname": "api_key",
-   "fieldtype": "Data",
-   "label": "API Key",
-   "description": "Deprecated: Use API Configurations table above"
-  },
-  {
-   "fieldname": "api_secret",
-   "fieldtype": "Password",
-   "label": "API Secret",
-   "description": "Deprecated: Use API Configurations table above"
+   "options": "CrossChex API Configuration"
   },
   {
    "fieldname": "column_break_rnih",
@@ -110,11 +75,11 @@
    "label": "Current Status"
   },
   {
-   "default": "Not Tested",
+   "default": "Disconnected",
    "fieldname": "connection_status",
    "fieldtype": "Select",
    "label": "Connection Status",
-   "options": "Not Tested\nConnected\nDisconnected\nError",
+   "options": "Connected\nDisconnected",
    "read_only": 1
   },
   {
@@ -150,35 +115,6 @@
    "fieldtype": "Datetime",
    "label": "Last Token Generated",
    "read_only": 1
-  },
-  {
-   "fieldname": "section_break_controls",
-   "fieldtype": "Section Break",
-   "label": "Manual Controls"
-  },
-  {
-   "fieldname": "test_connection_btn",
-   "fieldtype": "Button",
-   "label": "Test Connection"
-  },
-  {
-   "fieldname": "sync_now_btn",
-   "fieldtype": "Button",
-   "label": "Sync Now"
-  },
-  {
-   "fieldname": "column_break_controls",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "clear_logs_btn",
-   "fieldtype": "Button",
-   "label": "Clear Logs"
-  },
-  {
-   "fieldname": "reset_token_btn",
-   "fieldtype": "Button",
-   "label": "Reset Token"
   },
   {
    "fieldname": "advanced_tab",
@@ -224,7 +160,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-07-31 16:47:15.838571",
+ "modified": "2026-01-25 20:49:41.106311",
  "modified_by": "Administrator",
  "module": "Hamptons",
  "name": "Crosschex Settings",
