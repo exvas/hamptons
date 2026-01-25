@@ -41,6 +41,40 @@ def is_hod_or_hr_manager(employee):
 	return False
 
 
+@frappe.whitelist()
+def hod_is_hr_approver(employee):
+	"""
+	Check if the employee's HOD is also an HR Approver
+	This prevents double approval when HR Manager is also the department head
+
+	Args:
+		employee: Employee ID
+
+	Returns:
+		Boolean - True if employee's HOD has HR Approver role
+	"""
+	if not employee:
+		return False
+
+	# Get the employee's reports_to (HOD)
+	reports_to = frappe.db.get_value("Employee", employee, "reports_to")
+	if not reports_to:
+		return False
+
+	# Get the HOD's user_id
+	hod_user_id = frappe.db.get_value("Employee", reports_to, "user_id")
+	if not hod_user_id:
+		return False
+
+	# Check if HOD has HR Approver role
+	has_hr_role = frappe.db.exists("Has Role", {
+		"parent": hod_user_id,
+		"role": "Hr Approver"
+	})
+
+	return bool(has_hr_role)
+
+
 def validate_leave_application(doc, method=None):
 	"""
 	Validate Leave Application - show warning for Annual Leave without 2 weeks advance notice
