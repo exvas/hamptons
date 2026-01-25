@@ -6,11 +6,13 @@
  "engine": "InnoDB",
  "field_order": [
   "basic_settings_tab",
-  "api_configurations",
-  "column_break_rnih",
   "enable_realtime_sync",
+  "column_break_zugw",
   "sync_frequency",
+  "column_break_mcan",
   "sync_hours_back",
+  "section_break_rbzj",
+  "api_configurations",
   "status_tab",
   "section_break_status",
   "connection_status",
@@ -40,10 +42,6 @@
    "fieldtype": "Table",
    "label": "API Configurations",
    "options": "CrossChex API Configuration"
-  },
-  {
-   "fieldname": "column_break_rnih",
-   "fieldtype": "Column Break"
   },
   {
    "default": "0",
@@ -154,13 +152,25 @@
    "fieldname": "webhook_retry_attempts",
    "fieldtype": "Int",
    "label": "Webhook Retry Attempts"
+  },
+  {
+   "fieldname": "column_break_zugw",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_mcan",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_rbzj",
+   "fieldtype": "Section Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-01-25 20:49:41.106311",
+ "modified": "2026-01-25 21:12:41.687174",
  "modified_by": "Administrator",
  "module": "Hamptons",
  "name": "Crosschex Settings",

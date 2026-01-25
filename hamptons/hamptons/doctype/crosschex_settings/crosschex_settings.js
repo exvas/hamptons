@@ -3,62 +3,17 @@
 
 frappe.ui.form.on('Crosschex Settings', {
     refresh: function(frm) {
-        // Add custom buttons
-        frm.add_custom_button(__('Test Connection'), function() {
-            test_api_connection(frm);
-        });
-        
-        frm.add_custom_button(__('Sync Now'), function() {
-            manual_sync_now(frm);
-        });
-        
-        frm.add_custom_button(__('Clear Logs'), function() {
-            clear_crosschex_logs(frm);
-        });
-        
-        frm.add_custom_button(__('Reset Token'), function() {
-            reset_api_token(frm);
-        });
-        
         // Show status indicators
         update_status_indicators(frm);
     },
-    
+
     enable_realtime_sync: function(frm) {
         if (frm.doc.enable_realtime_sync) {
             frappe.msgprint({
                 title: __('CrossChex Sync Enabled'),
-                message: __('Please ensure API credentials are configured and test the connection.'),
+                message: __('Please configure API devices in the table below and test each connection.'),
                 indicator: 'blue'
             });
-        }
-    },
-    
-    test_connection_btn: function(frm) {
-        test_api_connection(frm);
-    },
-    
-    sync_now_btn: function(frm) {
-        manual_sync_now(frm);
-    },
-    
-    clear_logs_btn: function(frm) {
-        clear_crosschex_logs(frm);
-    },
-    
-    reset_token_btn: function(frm) {
-        reset_api_token(frm);
-    },
-    
-    api_key: function(frm) {
-        if (frm.doc.api_key) {
-            frm.set_value('connection_status', 'Not Tested');
-        }
-    },
-    
-    api_secret: function(frm) {
-        if (frm.doc.api_secret) {
-            frm.set_value('connection_status', 'Not Tested');
         }
     }
 });
@@ -69,7 +24,7 @@ frappe.ui.form.on('CrossChex API Configuration', {
         // Set default values for new row
         let row = locals[cdt][cdn];
         if (!row.api_url) {
-            frappe.model.set_value(cdt, cdn, 'connection_status', 'Not Tested');
+            frappe.model.set_value(cdt, cdn, 'connection_status', 'Disconnected');
         }
     },
     
@@ -137,9 +92,9 @@ function test_individual_connection(frm, config_row) {
                     message: r.message ? r.message.error : __('Connection failed'),
                     indicator: 'red'
                 });
-                
+
                 // Update the row's connection status
-                frappe.model.set_value(config_row.doctype, config_row.name, 'connection_status', 'Error');
+                frappe.model.set_value(config_row.doctype, config_row.name, 'connection_status', 'Disconnected');
                 frm.refresh_field('api_configurations');
             }
         }
@@ -211,90 +166,12 @@ function sync_individual_device(frm, config_row) {
     });
 }
 
-function test_api_connection(frm) {
-    frappe.call({
-        method: 'test_connection',
-        doc: frm.doc,
-        callback: function(r) {
-            if (r.message && r.message.success) {
-                frappe.msgprint({
-                    title: __('Success'),
-                    message: r.message.message,
-                    indicator: 'green'
-                });
-            } else {
-                frappe.msgprint({
-                    title: __('Error'),
-                    message: r.message ? r.message.error : __('Connection failed'),
-                    indicator: 'red'
-                });
-            }
-        }
-    });
-}
-
-function manual_sync_now(frm) {
-    frappe.call({
-        method: 'sync_now',
-        doc: frm.doc,
-        callback: function(r) {
-            if (r.message && r.message.success) {
-                frappe.msgprint({
-                    title: __('Success'),
-                    message: r.message.message,
-                    indicator: 'green'
-                });
-                frm.reload_doc();
-            } else {
-                frappe.msgprint({
-                    title: __('Error'), 
-                    message: r.message ? r.message.error : __('Sync failed'),
-                    indicator: 'red'
-                });
-            }
-        }
-    });
-}
-
-function clear_crosschex_logs(frm) {
-    frappe.confirm(__('Clear all CrossChex logs?'), function() {
-        frappe.call({
-            method: 'clear_logs',
-            doc: frm.doc,
-            callback: function(r) {
-                frappe.msgprint({
-                    title: r.message.success ? __('Success') : __('Error'),
-                    message: r.message.success ? r.message.message : r.message.error,
-                    indicator: r.message.success ? 'green' : 'red'
-                });
-            }
-        });
-    });
-}
-
-function reset_api_token(frm) {
-    frappe.confirm(__('Reset API token?'), function() {
-        frappe.call({
-            method: 'reset_token',
-            doc: frm.doc,
-            callback: function(r) {
-                frappe.msgprint({
-                    title: r.message.success ? __('Success') : __('Error'),
-                    message: r.message.success ? r.message.message : r.message.error,
-                    indicator: r.message.success ? 'green' : 'red'
-                });
-                if (r.message.success) {
-                    frm.refresh();
-                }
-            }
-        });
-    });
-}
+// Legacy functions removed - use individual device testing from API Configurations table
 
 function update_status_indicators(frm) {
-    let status = frm.doc.connection_status || 'Not Tested';
+    let status = frm.doc.connection_status || 'Disconnected';
     let indicator_class = 'gray';
-    
+
     switch(status) {
         case 'Connected':
             indicator_class = 'green';
@@ -302,11 +179,8 @@ function update_status_indicators(frm) {
         case 'Disconnected':
             indicator_class = 'orange';
             break;
-        case 'Error':
-            indicator_class = 'red';
-            break;
         default:
-            indicator_class = 'gray';
+            indicator_class = 'orange';
     }
     
     // Show sync status
