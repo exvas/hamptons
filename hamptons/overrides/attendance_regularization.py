@@ -13,7 +13,8 @@ from frappe.utils import get_url_to_form
 
 def after_insert_attendance_regularization(doc, method=None):
 	"""
-	Send notification email to employee when Attendance Regularization is created
+	Queue email notification after Attendance Regularization is created.
+	Uses background job to ensure record is committed before sending email.
 
 	Args:
 		doc: Attendance Regularization document
@@ -22,29 +23,71 @@ def after_insert_attendance_regularization(doc, method=None):
 	if not doc.employee:
 		return
 
+	# Queue email notification to be sent AFTER the transaction is committed
+	# This prevents sending emails for records that get rolled back
+	frappe.enqueue(
+		'hamptons.overrides.attendance_regularization.send_ar_notification_email',
+		queue='short',
+		timeout=300,
+		at_front=False,
+		ar_name=doc.name,
+		employee=doc.employee,
+		employee_name=doc.employee_name,
+		posting_date=str(doc.posting_date),
+		shift=doc.shift,
+		start_time=str(doc.start_time) if doc.start_time else None,
+		end_time=str(doc.end_time) if doc.end_time else None,
+		late=str(doc.late) if doc.late else None,
+		status=doc.status
+	)
+
+
+def send_ar_notification_email(ar_name, employee, employee_name, posting_date, shift, start_time, end_time, late, status):
+	"""
+	Send notification email to employee about Attendance Regularization.
+	This is called from a background job AFTER the record is committed.
+
+	Args:
+		ar_name: Attendance Regularization name
+		employee: Employee ID
+		employee_name: Employee name
+		posting_date: Date of regularization
+		shift: Shift name
+		start_time: Shift start time
+		end_time: Shift end time
+		late: Late entry time
+		status: AR status
+	"""
+	# Verify the AR record actually exists in database
+	if not frappe.db.exists("Attendance Regularization", ar_name):
+		frappe.logger().warning(
+			f"Skipping email for {ar_name}: Record not found in database (likely rolled back)"
+		)
+		return
+
 	# Get employee details
-	employee = frappe.get_doc("Employee", doc.employee)
-	employee_email = employee.prefered_email or employee.company_email or employee.personal_email
+	employee_doc = frappe.get_doc("Employee", employee)
+	employee_email = employee_doc.prefered_email or employee_doc.company_email or employee_doc.personal_email
 
 	# Also get user email if employee is linked to a user
 	user_email = None
-	if employee.user_id:
-		user_email = frappe.db.get_value("User", employee.user_id, "email")
+	if employee_doc.user_id:
+		user_email = frappe.db.get_value("User", employee_doc.user_id, "email")
 
 	# Collect all recipient emails (remove duplicates)
 	recipients = list(set(filter(None, [employee_email, user_email])))
 
 	if not recipients:
 		frappe.logger().warning(
-			f"No email found for employee {doc.employee} - {doc.employee_name}"
+			f"No email found for employee {employee} - {employee_name}"
 		)
 		return
 
 	# Get URL to the document
-	regularization_url = get_url_to_form("Attendance Regularization", doc.name)
+	regularization_url = get_url_to_form("Attendance Regularization", ar_name)
 
 	# Build email content
-	subject = _("Attendance Regularization Created - {0}").format(doc.posting_date)
+	subject = _("Attendance Regularization Created - {0}").format(posting_date)
 
 	message = _("""
 		<h3>Attendance Regularization Notice</h3>
@@ -62,13 +105,13 @@ def after_insert_attendance_regularization(doc, method=None):
 			<a href="{regularization_url}" style="background-color: #2196F3; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Attendance Regularization</a>
 		</p>
 	""").format(
-		employee_name=doc.employee_name,
-		posting_date=frappe.format(doc.posting_date, {"fieldtype": "Date"}),
-		shift=doc.shift or "Not assigned",
-		start_time=doc.start_time or "-",
-		end_time=doc.end_time or "-",
-		late=doc.late or "No late",
-		status=doc.status,
+		employee_name=employee_name,
+		posting_date=frappe.format(posting_date, {"fieldtype": "Date"}),
+		shift=shift or "Not assigned",
+		start_time=start_time or "-",
+		end_time=end_time or "-",
+		late=late or "No late",
+		status=status,
 		regularization_url=regularization_url
 	)
 
@@ -78,13 +121,13 @@ def after_insert_attendance_regularization(doc, method=None):
 			subject=subject,
 			message=message,
 			reference_doctype="Attendance Regularization",
-			reference_name=doc.name,
+			reference_name=ar_name,
 			now=True
 		)
 		frappe.logger().info(
-			f"Sent Attendance Regularization notification to {', '.join(recipients)} for {doc.name}"
+			f"Sent Attendance Regularization notification to {', '.join(recipients)} for {ar_name}"
 		)
 	except Exception as e:
 		frappe.logger().error(
-			f"Failed to send Attendance Regularization notification for {doc.name}: {str(e)}"
+			f"Failed to send Attendance Regularization notification for {ar_name}: {str(e)}"
 		)

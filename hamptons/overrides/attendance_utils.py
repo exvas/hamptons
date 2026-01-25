@@ -301,28 +301,49 @@ def calculate_late_early_times(first_in_time, last_out_time, shift_type, process
 		shift_start_dt = datetime.combine(processing_date, start_time)
 		shift_start_dt += timedelta(minutes=grace)
 
-		first_in_dt = get_datetime(first_in_time) if not isinstance(first_in_time, datetime) else first_in_time
+		# FIXED: Ensure first_in_time is properly converted to datetime
+		# If first_in_time is a time object without date, combine it with processing_date
+		if isinstance(first_in_time, dt_time):
+			first_in_dt = datetime.combine(processing_date, first_in_time)
+		elif not isinstance(first_in_time, datetime):
+			first_in_dt = get_datetime(first_in_time)
+		else:
+			first_in_dt = first_in_time
 
+		# Only calculate late time if employee actually arrived late
 		if first_in_dt > shift_start_dt:
 			needs_regularization = True
 			diff = first_in_dt - shift_start_dt
-			hours = int(diff.total_seconds() // 3600)
-			minutes = int((diff.total_seconds() % 3600) // 60)
-			seconds = int(diff.total_seconds() % 60)
-			late_time = get_time(f"{hours:02d}:{minutes:02d}:{seconds:02d}")
+			# Safety check: only create late_time if diff is positive
+			if diff.total_seconds() > 0:
+				hours = int(diff.total_seconds() // 3600)
+				minutes = int((diff.total_seconds() % 3600) // 60)
+				seconds = int(diff.total_seconds() % 60)
+				late_time = get_time(f"{hours:02d}:{minutes:02d}:{seconds:02d}")
 
 	# Check early exit
 	if last_out_time:
 		shift_end_dt = datetime.combine(processing_date, end_time)
-		last_out_dt = get_datetime(last_out_time) if not isinstance(last_out_time, datetime) else last_out_time
 
+		# FIXED: Ensure last_out_time is properly converted to datetime
+		# If last_out_time is a time object without date, combine it with processing_date
+		if isinstance(last_out_time, dt_time):
+			last_out_dt = datetime.combine(processing_date, last_out_time)
+		elif not isinstance(last_out_time, datetime):
+			last_out_dt = get_datetime(last_out_time)
+		else:
+			last_out_dt = last_out_time
+
+		# Only calculate early exit time if employee actually left early
 		if last_out_dt < shift_end_dt:
 			needs_regularization = True
 			diff = shift_end_dt - last_out_dt
-			hours = int(diff.total_seconds() // 3600)
-			minutes = int((diff.total_seconds() % 3600) // 60)
-			seconds = int(diff.total_seconds() % 60)
-			early_exit_time = get_time(f"{hours:02d}:{minutes:02d}:{seconds:02d}")
+			# Safety check: only create early_exit_time if diff is positive
+			if diff.total_seconds() > 0:
+				hours = int(diff.total_seconds() // 3600)
+				minutes = int((diff.total_seconds() % 3600) // 60)
+				seconds = int(diff.total_seconds() % 60)
+				early_exit_time = get_time(f"{hours:02d}:{minutes:02d}:{seconds:02d}")
 
 	# If missing IN or OUT, needs regularization
 	if not first_in_time or not last_out_time:
