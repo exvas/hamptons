@@ -343,7 +343,7 @@ def sync_individual_device(api_url, api_key, config_row_name, config_name=None):
             else:
                 return {"success": False, "error": f"API returned status {response.status_code}"}
         
-        # Step 2: Fetch attendance data
+        # Step 2: Fetch attendance data with pagination support
         end_time = datetime.utcnow()
         # Use last sync time if available, otherwise fetch last 7 days
         # This prevents re-fetching all historical data on every sync
@@ -360,54 +360,94 @@ def sync_individual_device(api_url, api_key, config_row_name, config_name=None):
         else:
             # Initial sync: get last 30 days of data
             begin_time = end_time - timedelta(days=30)
-        
+
         begin_time_str = begin_time.strftime("%Y-%m-%dT%H:%M:%S+00:00")
         end_time_str = end_time.strftime("%Y-%m-%dT%H:%M:%S+00:00")
-        
-        request_id = str(uuid.uuid4())
-        
-        payload = {
-            "header": {
-                "nameSpace": "attendance.record",
-                "nameAction": "getrecord",
-                "version": "1.0",
-                "requestId": request_id,
-                "timestamp": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S+00:00")
-            },
-            "authorize": {
-                "type": "token",
-                "token": token
-            },
-            "payload": {
-                "begin_time": begin_time_str,
-                "end_time": end_time_str,
-                "order": "asc",
-                "page": 1,
-                "per_page": 1000
+
+        # Fetch all pages of data
+        all_records = []
+        page = 1
+        per_page = 1000
+        total_pages = 1  # Will be updated from API response
+
+        while page <= total_pages:
+            request_id = str(uuid.uuid4())
+
+            payload = {
+                "header": {
+                    "nameSpace": "attendance.record",
+                    "nameAction": "getrecord",
+                    "version": "1.0",
+                    "requestId": request_id,
+                    "timestamp": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S+00:00")
+                },
+                "authorize": {
+                    "type": "token",
+                    "token": token
+                },
+                "payload": {
+                    "begin_time": begin_time_str,
+                    "end_time": end_time_str,
+                    "order": "asc",
+                    "page": page,
+                    "per_page": per_page
+                }
             }
-        }
-        
-        response = requests.post(
-            api_url,
-            json=payload,
-            headers={'Content-Type': 'application/json'},
-            timeout=30
-        )
-        
-        if response.status_code != 200:
-            return {"success": False, "error": f"Failed to fetch attendance data: {response.status_code}"}
-        
-        data = response.json()
-        
-        if 'payload' not in data or 'list' not in data['payload']:
-            return {"success": False, "error": "No attendance data in response"}
-        
-        records = data['payload']['list']
-        
-        # Log sync summary as info (not error)
+
+            response = requests.post(
+                api_url,
+                json=payload,
+                headers={'Content-Type': 'application/json'},
+                timeout=30
+            )
+
+            if response.status_code != 200:
+                if page == 1:
+                    return {"success": False, "error": f"Failed to fetch attendance data: {response.status_code}"}
+                else:
+                    # If we already got some pages, break and process what we have
+                    frappe.logger().warning(f"Failed to fetch page {page}, stopping pagination. Got {len(all_records)} records so far.")
+                    break
+
+            data = response.json()
+
+            if 'payload' not in data or 'list' not in data['payload']:
+                if page == 1:
+                    return {"success": False, "error": "No attendance data in response"}
+                else:
+                    break
+
+            page_records = data['payload']['list']
+            all_records.extend(page_records)
+
+            # Check if there are more pages
+            # CrossChex API returns total count in payload
+            if 'total' in data['payload']:
+                total_records = data['payload']['total']
+                total_pages = (total_records + per_page - 1) // per_page  # Calculate total pages
+                frappe.logger().info(
+                    f"CrossChex Sync Page {page}/{total_pages}: Fetched {len(page_records)} records "
+                    f"(Total so far: {len(all_records)}/{total_records})"
+                )
+            else:
+                # If no total field, check if we got a full page
+                if len(page_records) < per_page:
+                    # Last page
+                    break
+
+            page += 1
+
+            # Safety limit: don't fetch more than 10 pages (10,000 records) in one sync
+            if page > 10:
+                frappe.logger().warning(f"Reached page limit (10), stopping. Fetched {len(all_records)} records.")
+                break
+
+        records = all_records
+
+        # Log sync summary
         if records:
             frappe.logger().info(
-                f"CrossChex Sync: Fetched {len(records)} records from {config_name or api_url} "
+                f"CrossChex Sync Complete: Fetched {len(records)} total records from {config_name or api_url} "
                 f"(first: {records[0].get('checktime', 'N/A')}, last: {records[-1].get('checktime', 'N/A')})"
             )
         
