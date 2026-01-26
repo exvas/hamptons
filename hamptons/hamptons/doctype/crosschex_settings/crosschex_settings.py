@@ -345,17 +345,29 @@ def sync_individual_device(api_url, api_key, config_row_name, config_name=None):
         
         # Step 2: Fetch attendance data with pagination support
         end_time = datetime.utcnow()
-        # Use last sync time if available, otherwise fetch last 7 days
-        # This prevents re-fetching all historical data on every sync
+
+        # Smart sync strategy to ensure no records are missed:
+        # - Always fetch from start of current day (midnight) to capture all today's records
+        # - UUID duplicate detection prevents re-processing existing records
+        # - This ensures devices that were offline or had delayed check-ins don't lose data
         last_sync = config_doc.last_sync_time
+
+        # Calculate start of today in UTC (midnight)
+        current_datetime = now_datetime()
+        today_start_utc = datetime.combine(current_datetime.date(), datetime.min.time())
+
         if last_sync:
             try:
-                # Fetch from last sync time minus 1 hour (for overlap/safety)
-                begin_time = get_datetime(last_sync) - timedelta(hours=1)
-                # Convert to UTC
-                if begin_time > end_time:
-                    begin_time = end_time - timedelta(days=7)
+                last_sync_dt = get_datetime(last_sync)
+                # If last sync was today, fetch from start of today
+                # This ensures we capture any records created earlier today that were missed
+                if last_sync_dt.date() == today_start_utc.date():
+                    begin_time = today_start_utc
+                else:
+                    # Last sync was yesterday or earlier - fetch from that date's start
+                    begin_time = datetime.combine(last_sync_dt.date(), datetime.min.time())
             except:
+                # Fallback: fetch last 7 days
                 begin_time = end_time - timedelta(days=7)
         else:
             # Initial sync: get last 30 days of data
