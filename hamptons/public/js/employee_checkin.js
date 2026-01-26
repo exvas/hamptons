@@ -28,11 +28,15 @@ frappe.ui.form.on('Employee Checkin', {
 
 function show_checkin_summary(frm) {
   if (!frm.doc.employee || !frm.doc.time) return;
-  
+
   // Get check-in date
   let checkin_date = frappe.datetime.str_to_obj(frm.doc.time);
   let date_str = frappe.datetime.obj_to_str(checkin_date).split(' ')[0];
-  
+
+  // Create start and end datetime for the date
+  let start_datetime = date_str + ' 00:00:00';
+  let end_datetime = date_str + ' 23:59:59';
+
   // Fetch today's check-ins for this employee
   frappe.call({
     method: 'frappe.client.get_list',
@@ -40,7 +44,7 @@ function show_checkin_summary(frm) {
       doctype: 'Employee Checkin',
       filters: {
         employee: frm.doc.employee,
-        time: ['like', date_str + '%']
+        time: ['between', [start_datetime, end_datetime]]
       },
       fields: ['name', 'time', 'log_type', 'device_id'],
       order_by: 'time asc'
