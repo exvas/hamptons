@@ -68,59 +68,93 @@ def validate_shift_type(shift_type_name):
 def calculate_late_time(checkin_time, shift_start_time, grace_period_minutes=0):
 	"""
 	Calculate how late an employee is based on checkin time and shift start time.
-	
+
 	Args:
 		checkin_time: datetime of checkin
-		shift_start_time: time object for shift start
+		shift_start_time: time object or timedelta for shift start
 		grace_period_minutes: grace period in minutes
-	
+
 	Returns:
 		Time difference as time object, or None if not late
 	"""
+	from datetime import time as dt_time
+
 	checkin_date = getdate(checkin_time)
-	
+	checkin_datetime = get_datetime(checkin_time)
+
+	# Handle shift_start_time - convert timedelta to time if needed
+	# Frappe stores Time fields as timedelta internally
+	if isinstance(shift_start_time, timedelta):
+		total_seconds = int(shift_start_time.total_seconds())
+		hours = total_seconds // 3600
+		minutes = (total_seconds % 3600) // 60
+		seconds = total_seconds % 60
+		shift_start_time = dt_time(hours, minutes, seconds)
+	elif not isinstance(shift_start_time, dt_time):
+		shift_start_time = get_time(shift_start_time)
+
 	# Create datetime for shift start on the checkin date
 	shift_start_datetime = datetime.combine(checkin_date, shift_start_time)
-	
+
 	# Add grace period
 	if grace_period_minutes:
 		shift_start_datetime += timedelta(minutes=grace_period_minutes)
-	
-	# Compare
-	if checkin_time > shift_start_datetime:
-		time_diff = checkin_time - shift_start_datetime
-		hours = int(time_diff.total_seconds() // 3600)
-		minutes = int((time_diff.total_seconds() % 3600) // 60)
-		seconds = int(time_diff.total_seconds() % 60)
-		return get_time(f"{hours:02d}:{minutes:02d}:{seconds:02d}")
-	
+
+	# Compare - only calculate late time if employee arrived AFTER shift start
+	if checkin_datetime > shift_start_datetime:
+		time_diff = checkin_datetime - shift_start_datetime
+		total_secs = time_diff.total_seconds()
+		# Safety check: only return late time if positive
+		if total_secs > 0:
+			hours = int(total_secs // 3600)
+			minutes = int((total_secs % 3600) // 60)
+			seconds = int(total_secs % 60)
+			return get_time(f"{hours:02d}:{minutes:02d}:{seconds:02d}")
+
 	return None
 
 
 def calculate_early_exit_time(checkout_time, shift_end_time):
 	"""
 	Calculate how early an employee checked out compared to shift end time.
-	
+
 	Args:
 		checkout_time: datetime of checkout
-		shift_end_time: time object for shift end
-	
+		shift_end_time: time object or timedelta for shift end
+
 	Returns:
 		Time difference as time object, or None if not early
 	"""
+	from datetime import time as dt_time
+
 	checkout_date = getdate(checkout_time)
-	
+	checkout_datetime = get_datetime(checkout_time)
+
+	# Handle shift_end_time - convert timedelta to time if needed
+	# Frappe stores Time fields as timedelta internally
+	if isinstance(shift_end_time, timedelta):
+		total_seconds = int(shift_end_time.total_seconds())
+		hours = total_seconds // 3600
+		minutes = (total_seconds % 3600) // 60
+		seconds = total_seconds % 60
+		shift_end_time = dt_time(hours, minutes, seconds)
+	elif not isinstance(shift_end_time, dt_time):
+		shift_end_time = get_time(shift_end_time)
+
 	# Create datetime for shift end on the checkout date
 	shift_end_datetime = datetime.combine(checkout_date, shift_end_time)
-	
-	# Compare
-	if checkout_time < shift_end_datetime:
-		time_diff = shift_end_datetime - checkout_time
-		hours = int(time_diff.total_seconds() // 3600)
-		minutes = int((time_diff.total_seconds() % 3600) // 60)
-		seconds = int(time_diff.total_seconds() % 60)
-		return get_time(f"{hours:02d}:{minutes:02d}:{seconds:02d}")
-	
+
+	# Compare - only calculate early exit time if employee left BEFORE shift end
+	if checkout_datetime < shift_end_datetime:
+		time_diff = shift_end_datetime - checkout_datetime
+		total_secs = time_diff.total_seconds()
+		# Safety check: only return early time if positive
+		if total_secs > 0:
+			hours = int(total_secs // 3600)
+			minutes = int((total_secs % 3600) // 60)
+			seconds = int(total_secs % 60)
+			return get_time(f"{hours:02d}:{minutes:02d}:{seconds:02d}")
+
 	return None
 
 
