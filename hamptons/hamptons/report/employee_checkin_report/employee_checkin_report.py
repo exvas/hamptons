@@ -143,7 +143,7 @@ def get_data(filters):
 	conditions = get_conditions(filters)
 	
 	# Get employee check-ins with aggregated data
-	# Note: If all punches are IN type, we treat the last punch as OUT for reporting purposes
+	# Fixed: Only show last_out if there's an actual OUT checkin OR multiple checkins (last treated as OUT)
 	data = frappe.db.sql("""
 		SELECT
 			DATE(ec.time) as date,
@@ -155,14 +155,16 @@ def get_data(filters):
 			st.start_time as shift_start,
 			st.end_time as shift_end,
 			MIN(ec.time) as first_in,
-			MAX(CASE WHEN ec.log_type = 'OUT' THEN ec.time
-				ELSE (
-					SELECT MAX(ec2.time)
-					FROM `tabEmployee Checkin` ec2
-					WHERE ec2.employee = ec.employee
-						AND DATE(ec2.time) = DATE(ec.time)
-				)
-			END) as last_out,
+			CASE
+				-- If there's an actual OUT checkin, use the max OUT time
+				WHEN MAX(CASE WHEN ec.log_type = 'OUT' THEN 1 ELSE 0 END) = 1
+					THEN MAX(CASE WHEN ec.log_type = 'OUT' THEN ec.time ELSE NULL END)
+				-- If multiple checkins exist (2+), treat the last one as OUT
+				WHEN COUNT(*) > 1
+					THEN MAX(ec.time)
+				-- Single checkin with no OUT type = no checkout (NULL)
+				ELSE NULL
+			END as last_out,
 			COUNT(*) as total_checkins,
 			GROUP_CONCAT(DISTINCT ec.device_id ORDER BY ec.time SEPARATOR ', ') as device_id,
 			ar.name as regularization,
@@ -183,20 +185,20 @@ def get_data(filters):
 	
 	# Process the data to calculate working hours and late/early times
 	for row in data:
-		# Calculate working hours
+		# Calculate working hours (only if both first_in and last_out exist)
 		if row.get('first_in') and row.get('last_out'):
 			first_in_dt = get_datetime(row['first_in'])
 			last_out_dt = get_datetime(row['last_out'])
 			time_diff = last_out_dt - first_in_dt
 			row['working_hours'] = round(time_diff.total_seconds() / 3600, 2)
 		else:
-			row['working_hours'] = 0.0
-		
+			row['working_hours'] = None  # Show as empty instead of 0.0
+
 		# Calculate late arrival
 		if row.get('first_in') and row.get('shift_start'):
 			first_in_dt = get_datetime(row['first_in'])
 			shift_start_dt = get_datetime(str(row['date']) + ' ' + str(row['shift_start']))
-			
+
 			if first_in_dt > shift_start_dt:
 				late_diff = first_in_dt - shift_start_dt
 				hours = int(late_diff.total_seconds() // 3600)
@@ -204,12 +206,12 @@ def get_data(filters):
 				row['late_by'] = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
 			else:
 				row['late_by'] = "On Time"
-		
-		# Calculate early exit
+
+		# Calculate early exit (only if last_out exists)
 		if row.get('last_out') and row.get('shift_end'):
 			last_out_dt = get_datetime(row['last_out'])
 			shift_end_dt = get_datetime(str(row['date']) + ' ' + str(row['shift_end']))
-			
+
 			if last_out_dt < shift_end_dt:
 				early_diff = shift_end_dt - last_out_dt
 				hours = int(early_diff.total_seconds() // 3600)
@@ -217,7 +219,9 @@ def get_data(filters):
 				row['early_exit_by'] = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
 			else:
 				row['early_exit_by'] = "On Time"
-	
+		elif not row.get('last_out'):
+			row['early_exit_by'] = "No Checkout"  # Indicate missing checkout
+
 	return data
 
 
