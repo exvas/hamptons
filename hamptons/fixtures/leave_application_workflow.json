@@ -118,7 +118,7 @@
         "allowed": "HOD",
         "allow_self_approval": 1,
         "send_email_to_creator": 0,
-        "condition": "not (\n    frappe.db.get_value('Employee', doc.employee, 'designation') in ['HR Manager', 'Head of Department', 'HOD', 'Department Head', 'Department Manager']\n    or frappe.db.get_value('Employee', doc.employee, 'custom_is_hod')\n    or frappe.db.get_value('Employee', frappe.db.get_value('Employee', doc.employee, 'reports_to'), 'designation') == 'HR Manager'\n)",
+        "condition": "(frappe.db.get_value('Employee', doc.employee, 'designation') not in ['HR Manager', 'Head of Department', 'HOD', 'Department Head', 'Department Manager'] and not frappe.db.get_value('Employee', doc.employee, 'custom_is_hod') and frappe.db.get_value('Employee', frappe.db.get_value('Employee', doc.employee, 'reports_to'), 'designation') != 'HR Manager')",
         "workflow_builder_id": null,
         "doctype": "Workflow Transition"
       },
@@ -130,7 +130,7 @@
         "allowed": "HOD",
         "allow_self_approval": 1,
         "send_email_to_creator": 0,
-        "condition": "not (\n    frappe.db.get_value('Employee', doc.employee, 'designation') in ['HR Manager', 'Head of Department', 'HOD', 'Department Head', 'Department Manager']\n    or frappe.db.get_value('Employee', doc.employee, 'custom_is_hod')\n    or frappe.db.get_value('Employee', frappe.db.get_value('Employee', doc.employee, 'reports_to'), 'designation') == 'HR Manager'\n)",
+        "condition": "(frappe.db.get_value('Employee', doc.employee, 'designation') not in ['HR Manager', 'Head of Department', 'HOD', 'Department Head', 'Department Manager'] and not frappe.db.get_value('Employee', doc.employee, 'custom_is_hod') and frappe.db.get_value('Employee', frappe.db.get_value('Employee', doc.employee, 'reports_to'), 'designation') != 'HR Manager')",
         "workflow_builder_id": null,
         "doctype": "Workflow Transition"
       },
@@ -166,7 +166,7 @@
         "allowed": "GM",
         "allow_self_approval": 1,
         "send_email_to_creator": 0,
-        "condition": "(\n    frappe.db.get_value('Employee', doc.employee, 'designation') in ['HR Manager', 'Head of Department', 'HOD', 'Department Head', 'Department Manager']\n    or frappe.db.get_value('Employee', doc.employee, 'custom_is_hod')\n    or frappe.db.get_value('Employee', frappe.db.get_value('Employee', doc.employee, 'reports_to'), 'designation') == 'HR Manager'\n)",
+        "condition": "(frappe.db.get_value('Employee', doc.employee, 'designation') in ['HR Manager', 'Head of Department', 'HOD', 'Department Head', 'Department Manager'] or frappe.db.get_value('Employee', doc.employee, 'custom_is_hod'))",
         "workflow_builder_id": null,
         "doctype": "Workflow Transition"
       },
@@ -178,7 +178,31 @@
         "allowed": "GM",
         "allow_self_approval": 1,
         "send_email_to_creator": 0,
-        "condition": "(\n    frappe.db.get_value('Employee', doc.employee, 'designation') in ['HR Manager', 'Head of Department', 'HOD', 'Department Head', 'Department Manager']\n    or frappe.db.get_value('Employee', doc.employee, 'custom_is_hod')\n    or frappe.db.get_value('Employee', frappe.db.get_value('Employee', doc.employee, 'reports_to'), 'designation') == 'HR Manager'\n)",
+        "condition": "(frappe.db.get_value('Employee', doc.employee, 'designation') in ['HR Manager', 'Head of Department', 'HOD', 'Department Head', 'Department Manager'] or frappe.db.get_value('Employee', doc.employee, 'custom_is_hod'))",
+        "workflow_builder_id": null,
+        "doctype": "Workflow Transition"
+      },
+      {
+        "idx": 7,
+        "state": "Pending",
+        "action": "Approve",
+        "next_state": "Approved HR",
+        "allowed": "Hr Approver",
+        "allow_self_approval": 1,
+        "send_email_to_creator": 0,
+        "condition": "(frappe.db.get_value('Employee', frappe.db.get_value('Employee', doc.employee, 'reports_to'), 'designation') == 'HR Manager' and not frappe.db.get_value('Employee', doc.employee, 'custom_is_hod') and frappe.db.get_value('Employee', doc.employee, 'designation') not in ['HR Manager', 'Head of Department', 'HOD', 'Department Head', 'Department Manager'])",
+        "workflow_builder_id": null,
+        "doctype": "Workflow Transition"
+      },
+      {
+        "idx": 8,
+        "state": "Pending",
+        "action": "Reject",
+        "next_state": "Rejected HR",
+        "allowed": "Hr Approver",
+        "allow_self_approval": 1,
+        "send_email_to_creator": 0,
+        "condition": "(frappe.db.get_value('Employee', frappe.db.get_value('Employee', doc.employee, 'reports_to'), 'designation') == 'HR Manager' and not frappe.db.get_value('Employee', doc.employee, 'custom_is_hod') and frappe.db.get_value('Employee', doc.employee, 'designation') not in ['HR Manager', 'Head of Department', 'HOD', 'Department Head', 'Department Manager'])",
         "workflow_builder_id": null,
         "doctype": "Workflow Transition"
       }
