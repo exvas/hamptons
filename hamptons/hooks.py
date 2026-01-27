@@ -310,6 +310,23 @@ fixtures = [
                 ]
             ]
         ]
+    },
+    {
+        "doctype": "Notification",
+        "filters": [
+            [
+                "name",
+                "in",
+                [
+                    "Leave Application - Notify HOD",
+                    "Leave Application - Notify HR After HOD Approval",
+                    "Leave Application - Notify GM for HOD/HR Manager",
+                    "Leave Application - Notify HR Manager for Direct Staff",
+                    "Leave Application - Notify Employee on Approval",
+                    "Leave Application - Notify Employee on Rejection"
+                ]
+            ]
+        ]
     }
 ]
 # user_data_fields = [
