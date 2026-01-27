@@ -107,6 +107,20 @@
         "message": null,
         "workflow_builder_id": null,
         "doctype": "Workflow Document State"
+      },
+      {
+        "state": "Cancelled",
+        "doc_status": "2",
+        "update_field": "status",
+        "update_value": "Cancelled",
+        "is_optional_state": 0,
+        "avoid_status_override": 0,
+        "next_action_email_template": null,
+        "allow_edit": "Hr Approver",
+        "send_email": 0,
+        "message": null,
+        "workflow_builder_id": null,
+        "doctype": "Workflow Document State"
       }
     ],
     "transitions": [
