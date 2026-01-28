@@ -296,7 +296,7 @@ def create_or_update_attendance_regularization(checkin_doc, shift_assignment, sh
 		"start_time": shift_type.start_time,
 		"end_time": shift_type.end_time,
 		"late": late_time,
-		"status": "Open"
+		"status": "Pending"
 	})
 	
 	# Get reports_to from employee
