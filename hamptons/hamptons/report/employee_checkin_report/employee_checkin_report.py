@@ -222,6 +222,32 @@ def get_data(filters):
 		elif not row.get('last_out'):
 			row['early_exit_by'] = "No Checkout"  # Indicate missing checkout
 
+		# Compute status when no AR exists but there are issues
+		if not row.get('regularization'):
+			has_issues = False
+			issues = []
+
+			# Check for late arrival
+			if row.get('late_by') and row.get('late_by') != "On Time":
+				has_issues = True
+				issues.append("Late")
+
+			# Check for early exit
+			if row.get('early_exit_by') and row.get('early_exit_by') not in ("On Time", "No Checkout"):
+				has_issues = True
+				issues.append("Early Exit")
+
+			# Check for no checkout
+			if row.get('early_exit_by') == "No Checkout":
+				has_issues = True
+				issues.append("No Checkout")
+
+			# Set computed status
+			if has_issues:
+				row['regularization_status'] = "Needs Review"
+			else:
+				row['regularization_status'] = "OK"
+
 	return data
 
 
