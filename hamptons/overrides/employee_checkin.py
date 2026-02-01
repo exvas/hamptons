@@ -196,15 +196,27 @@ def should_create_regularization(checkin_doc):
 	
 	# Check for early exit (OUT log) - Only after shift end time
 	elif checkin_doc.log_type == "OUT":
+		# Convert shift_type.end_time from timedelta to time if needed
+		from datetime import time as dt_time
+		shift_end = shift_type.end_time
+		if isinstance(shift_end, timedelta):
+			total_seconds = int(shift_end.total_seconds())
+			hours = total_seconds // 3600
+			minutes = (total_seconds % 3600) // 60
+			seconds = total_seconds % 60
+			shift_end = dt_time(hours, minutes, seconds)
+		elif not isinstance(shift_end, dt_time):
+			shift_end = get_time(shift_end)
+
 		# Create datetime for shift end on the checkin date
-		shift_end_datetime = datetime.combine(checkin_date, shift_type.end_time)
-		
+		shift_end_datetime = datetime.combine(checkin_date, shift_end)
+
 		# Only proceed if shift end time has passed
 		if current_time < shift_end_datetime:
 			return False, "Shift end time has not passed yet (early exit detection deferred)", None
-		
+
 		early_time = calculate_early_exit_time(checkin_datetime, shift_type.end_time)
-		
+
 		if early_time:
 			return True, "Early exit", early_time
 	
