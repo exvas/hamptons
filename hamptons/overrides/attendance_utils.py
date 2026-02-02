@@ -161,9 +161,22 @@ def get_first_in_last_out(checkins, use_inferred=True, config=None):
         checkins = checkins_copy
         log_type_field = 'inferred_log_type'
 
-        # For simple strategy, first and last are guaranteed
-        first_in = checkins[0] if len(checkins) > 0 else None
-        last_out = checkins[-1] if len(checkins) > 1 else None
+        # Handle single checkin case based on its actual log_type
+        if len(checkins) == 1:
+            single_checkin = checkins[0]
+            original_type = single_checkin.get('original_log_type', 'IN')
+            if original_type == 'OUT':
+                # Single OUT checkin: no check-in, only check-out
+                first_in = None
+                last_out = single_checkin
+            else:
+                # Single IN checkin (or unknown): check-in only, no check-out
+                first_in = single_checkin
+                last_out = None
+        else:
+            # Multiple checkins: first = IN, last = OUT
+            first_in = checkins[0] if len(checkins) > 0 else None
+            last_out = checkins[-1] if len(checkins) > 1 else None
     else:
         # Infer log types using the specified strategy
         if use_inferred:

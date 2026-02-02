@@ -143,7 +143,10 @@ def get_data(filters):
 	conditions = get_conditions(filters)
 	
 	# Get employee check-ins with aggregated data
-	# Fixed: Only show last_out if there's an actual OUT checkin OR multiple checkins (last treated as OUT)
+	# Fixed: Properly handle single checkin case based on log_type
+	# - Single IN checkin: show as first_in only (no last_out)
+	# - Single OUT checkin: show as last_out only (no first_in)
+	# - Multiple checkins: first IN is first_in, last OUT (or last checkin) is last_out
 	data = frappe.db.sql("""
 		SELECT
 			DATE(ec.time) as date,
@@ -154,7 +157,16 @@ def get_data(filters):
 			sa.shift_type as shift,
 			st.start_time as shift_start,
 			st.end_time as shift_end,
-			MIN(ec.time) as first_in,
+			CASE
+				-- If there's an actual IN checkin, use the min IN time
+				WHEN MAX(CASE WHEN ec.log_type = 'IN' THEN 1 ELSE 0 END) = 1
+					THEN MIN(CASE WHEN ec.log_type = 'IN' THEN ec.time ELSE NULL END)
+				-- If multiple checkins exist (2+) but no IN type, use the first one as IN
+				WHEN COUNT(*) > 1
+					THEN MIN(ec.time)
+				-- Single checkin with OUT type only = no check-in (NULL)
+				ELSE CASE WHEN MIN(ec.log_type) = 'OUT' THEN NULL ELSE MIN(ec.time) END
+			END as first_in,
 			CASE
 				-- If there's an actual OUT checkin, use the max OUT time
 				WHEN MAX(CASE WHEN ec.log_type = 'OUT' THEN 1 ELSE 0 END) = 1
@@ -206,6 +218,8 @@ def get_data(filters):
 				row['late_by'] = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
 			else:
 				row['late_by'] = "On Time"
+		elif not row.get('first_in'):
+			row['late_by'] = "No Check-in"  # Indicate missing check-in
 
 		# Calculate early exit (only if last_out exists)
 		if row.get('last_out') and row.get('shift_end'):
