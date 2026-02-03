@@ -618,10 +618,11 @@ def consolidate_attendance_for_date(processing_date):
 
 		late_enabled = bool(getattr(shift_type, "enable_late_entry_marking", False))
 
-		# UPDATED LOGIC: Auto-mark present for ALL employees with valid IN and OUT checkins
-		# If both first_in and last_out exist, mark as Present regardless of late/early times
-		if first_in and last_out:
-			needs_regularization = False
+		# Regularization is needed if:
+		# 1. Employee was late (beyond grace period)
+		# 2. Employee left early (before shift end)
+		# 3. Missing check-in or check-out
+		# Only auto-mark Present if no issues detected
 
 		try:
 			# Avoid duplicates: if Attendance already exists for the date, skip creation
@@ -645,11 +646,58 @@ def consolidate_attendance_for_date(processing_date):
 				attendance.submit()
 				created_attendance += 1
 			else:
-				# Skip if a regularization already exists for employee/date
-				existing_reg = frappe.db.exists("Attendance Regularization", {"employee": emp, "posting_date": processing_date, "docstatus": ["<", 2]})
-				if existing_reg:
+				# Check if a draft regularization already exists for employee/date
+				existing_reg_name = frappe.db.get_value(
+					"Attendance Regularization",
+					{"employee": emp, "posting_date": processing_date, "docstatus": 0},
+					"name"
+				)
+
+				if existing_reg_name:
+					# UPDATE existing draft regularization with new checkin data
+					# This handles late sync scenarios when machine was offline
+					reg = frappe.get_doc("Attendance Regularization", existing_reg_name)
+
+					# Get existing checkin names to avoid duplicates
+					existing_checkin_names = set()
+					for item in reg.attendance_regularization_item:
+						if item.employee_checkin:
+							existing_checkin_names.add(item.employee_checkin)
+
+					# Add new checkin items that don't already exist
+					items_added = False
+					for c in [first_in, last_out]:
+						if c and c["name"] not in existing_checkin_names:
+							log_type = c.get("inferred_log_type", c.get("log_type", "IN"))
+							reg.append("attendance_regularization_item", {
+								"time": c["time"],
+								"log_type": log_type,
+								"device_id": c.get("device_id"),
+								"employee_checkin": c["name"]
+							})
+							items_added = True
+
+					# Update late time if changed
+					if late_time_val and (not reg.late or late_time_val != reg.late):
+						reg.late = late_time_val
+						items_added = True
+
+					if items_added:
+						reg.save(ignore_permissions=True)
+						frappe.logger().info(
+							f"Updated existing regularization {existing_reg_name} for {emp} on {processing_date}"
+						)
 					continue
-				# Create Attendance Regularization with consolidated items
+
+				# Check if a submitted regularization already exists (skip creation)
+				existing_submitted = frappe.db.exists(
+					"Attendance Regularization",
+					{"employee": emp, "posting_date": processing_date, "docstatus": 1}
+				)
+				if existing_submitted:
+					continue
+
+				# Create new Attendance Regularization with consolidated items
 				reg = frappe.get_doc({
 					"doctype": "Attendance Regularization",
 					"employee": emp,

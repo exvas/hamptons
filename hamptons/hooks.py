@@ -183,8 +183,8 @@ scheduler_events = {
 			# Run cleanup every 5 days at 2:00 AM
 			"hamptons.utils.cleanup_old_logs"
 		],
-		"45 23 * * *": [
-			# Consolidate daily checkins into Attendance Regularization at 11:45 PM
+		"0 20 * * *": [
+			# Consolidate daily checkins into Attendance Regularization at 8:00 PM
 			"hamptons.overrides.employee_checkin.daily_attendance_regularization_job"
 		]
 	},

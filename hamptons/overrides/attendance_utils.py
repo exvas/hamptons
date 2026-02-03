@@ -336,7 +336,10 @@ def calculate_late_early_times(first_in_time, last_out_time, shift_type, process
 
 	# Check early exit
 	if last_out_time:
+		# Apply early exit grace period (if configured in shift type)
+		early_grace = int(getattr(shift_type, "early_exit_grace_period", 0) or 0)
 		shift_end_dt = datetime.combine(processing_date, end_time)
+		shift_end_with_grace = shift_end_dt - timedelta(minutes=early_grace)
 
 		# FIXED: Ensure last_out_time is properly converted to datetime
 		# If last_out_time is a time object without date, combine it with processing_date
@@ -347,10 +350,10 @@ def calculate_late_early_times(first_in_time, last_out_time, shift_type, process
 		else:
 			last_out_dt = last_out_time
 
-		# Only calculate early exit time if employee actually left early
-		if last_out_dt < shift_end_dt:
+		# Only calculate early exit time if employee left before shift end minus grace period
+		if last_out_dt < shift_end_with_grace:
 			needs_regularization = True
-			diff = shift_end_dt - last_out_dt
+			diff = shift_end_with_grace - last_out_dt
 			# Safety check: only create early_exit_time if diff is positive
 			if diff.total_seconds() > 0:
 				hours = int(diff.total_seconds() // 3600)
