@@ -131,7 +131,20 @@ def get_columns():
 		},
 		{
 			"fieldname": "regularization_status",
-			"label": _("Status"),
+			"label": _("Reg. Status"),
+			"fieldtype": "Data",
+			"width": 100
+		},
+		{
+			"fieldname": "attendance",
+			"label": _("Attendance"),
+			"fieldtype": "Link",
+			"options": "Attendance",
+			"width": 150
+		},
+		{
+			"fieldname": "attendance_status",
+			"label": _("Final Status"),
 			"fieldtype": "Data",
 			"width": 100
 		}
@@ -180,7 +193,9 @@ def get_data(filters):
 			COUNT(*) as total_checkins,
 			GROUP_CONCAT(DISTINCT ec.device_id ORDER BY ec.time SEPARATOR ', ') as device_id,
 			ar.name as regularization,
-			ar.status as regularization_status
+			ar.status as regularization_status,
+			att.name as attendance,
+			att.status as attendance_status
 		FROM `tabEmployee Checkin` ec
 		LEFT JOIN `tabEmployee` emp ON emp.name = ec.employee
 		LEFT JOIN `tabShift Assignment` sa ON sa.employee = ec.employee
@@ -190,6 +205,9 @@ def get_data(filters):
 		LEFT JOIN `tabShift Type` st ON st.name = sa.shift_type
 		LEFT JOIN `tabAttendance Regularization` ar ON ar.employee = ec.employee
 			AND ar.posting_date = DATE(ec.time)
+		LEFT JOIN `tabAttendance` att ON att.employee = ec.employee
+			AND att.attendance_date = DATE(ec.time)
+			AND att.docstatus = 1
 		WHERE 1=1 {conditions}
 		GROUP BY DATE(ec.time), ec.employee
 		ORDER BY DATE(ec.time) DESC, ec.employee_name
@@ -236,15 +254,38 @@ def get_data(filters):
 		elif not row.get('last_out'):
 			row['early_exit_by'] = "No Checkout"  # Indicate missing checkout
 
-		# Compute status when no AR exists but there are issues
-		if not row.get('regularization'):
+		# Compute final status based on Attendance record (created after approval)
+		# Priority: Attendance status > Regularization status > Computed status
+		if row.get('attendance_status'):
+			# Attendance record exists (created after Regularization approval)
+			# Keep the attendance_status as-is (Present, Absent, Half Day, On Leave, etc.)
+			pass
+		elif row.get('regularization'):
+			# Regularization exists but no Attendance yet
+			# Map regularization status to a meaningful final status
+			reg_status = row.get('regularization_status', '')
+			if reg_status == 'Approved':
+				row['attendance_status'] = 'Approved (Pending Attendance)'
+			elif reg_status == 'Pending':
+				row['attendance_status'] = 'Pending Approval'
+			elif reg_status == 'Rejected':
+				row['attendance_status'] = 'Rejected'
+			else:
+				row['attendance_status'] = reg_status
+		else:
+			# No regularization exists - compute status based on issues
 			has_issues = False
 			issues = []
 
 			# Check for late arrival
-			if row.get('late_by') and row.get('late_by') != "On Time":
+			if row.get('late_by') and row.get('late_by') not in ("On Time", "No Check-in"):
 				has_issues = True
 				issues.append("Late")
+
+			# Check for missing check-in
+			if row.get('late_by') == "No Check-in":
+				has_issues = True
+				issues.append("No Check-in")
 
 			# Check for early exit
 			if row.get('early_exit_by') and row.get('early_exit_by') not in ("On Time", "No Checkout"):
@@ -259,8 +300,10 @@ def get_data(filters):
 			# Set computed status
 			if has_issues:
 				row['regularization_status'] = "Needs Review"
+				row['attendance_status'] = "Needs Review"
 			else:
 				row['regularization_status'] = "OK"
+				row['attendance_status'] = "OK"
 
 	return data
 
