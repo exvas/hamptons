@@ -339,7 +339,10 @@ def on_employee_checkin_submit(doc, method=None):
 	"""
 	Hook to run after Employee Checkin is created (after_insert).
 	Checks if attendance regularization should be created or updated.
-	
+
+	IMPORTANT: Handles late-synced checkins from offline devices by triggering
+	consolidation for the punch date, not just individual regularization creation.
+
 	Note: Despite the function name, this runs on 'after_insert' to support
 	automatic checkin creation from CrossChex sync.
 
@@ -355,29 +358,56 @@ def on_employee_checkin_submit(doc, method=None):
 		)
 		return
 
+	checkin_date = getdate(doc.time)
+	sync_date = getdate(doc.creation)
+
+	# CRITICAL: Detect late-synced checkins (device was offline)
+	# If punch date is before sync date, trigger full consolidation for that date
+	# This ensures all checkins for that date are properly processed together
+	if checkin_date < sync_date:
+		frappe.logger().info(
+			f"Late-synced checkin detected: {doc.name} | Punch: {checkin_date} | Synced: {sync_date}"
+		)
+
+		# Enqueue consolidation for the punch date in background
+		# This will update existing draft regularizations or create new ones
+		frappe.enqueue(
+			'hamptons.overrides.employee_checkin.consolidate_attendance_for_date',
+			queue='short',
+			timeout=300,
+			processing_date=checkin_date,
+			is_retry=True,
+			now=False
+		)
+
+		frappe.logger().info(
+			f"Queued consolidation for {checkin_date} due to late-synced checkin {doc.name}"
+		)
+		return
+
+	# For same-day checkins, use the original immediate processing logic
 	# Check if regularization should be created
 	should_create, reason, late_time = should_create_regularization(doc)
-	
+
 	if not should_create:
 		frappe.log_error(
 			message=f"Regularization not created for {doc.name}: {reason}",
 			title="Attendance Regularization Check"
 		)
 		return
-	
+
 	# Get shift assignment and shift type
-	checkin_date = getdate(doc.time)
 	shift_assignment = get_active_shift_assignment(doc.employee, checkin_date)
-	
+
 	if not shift_assignment:
 		frappe.log_error(
 			message=f"No shift assignment found for {doc.employee} on {checkin_date}",
 			title="Attendance Regularization - No Shift Assignment"
 		)
 		return
-	
+
 	shift_type = validate_shift_type(shift_assignment.shift_type)
-	
+
 	# Create or update regularization
 	try:
 		create_or_update_attendance_regularization(doc, shift_assignment, shift_type, late_time)
