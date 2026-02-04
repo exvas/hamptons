@@ -338,23 +338,24 @@ def create_or_update_attendance_regularization(checkin_doc, shift_assignment, sh
 def on_employee_checkin_submit(doc, method=None):
 	"""
 	Hook to run after Employee Checkin is created (after_insert).
-	Checks if attendance regularization should be created or updated.
 
-	IMPORTANT: Handles late-synced checkins from offline devices by triggering
-	consolidation for the punch date, not just individual regularization creation.
+	IMPORTANT: This hook NO LONGER creates regularizations immediately.
+	Instead, it only triggers consolidation for late-synced checkins.
 
-	Note: Despite the function name, this runs on 'after_insert' to support
-	automatic checkin creation from CrossChex sync.
+	The 8 PM scheduler job handles all regularization creation because:
+	1. Individual checkins don't show the full picture (IN without OUT yet)
+	2. Biometric devices often mark all punches as "IN" regardless of actual type
+	3. Creating regularization from individual checkins caused incorrect records
+	   (e.g., treating 5 PM checkout marked as "IN" as a 9-hour late entry)
 
 	Args:
 		doc: Employee Checkin document
 		method: Method name (not used)
 	"""
 	# Check if Attendance Regularization DocType exists on this site
-	# This prevents errors when hamptons app is present but not installed on all sites
 	if not frappe.db.exists("DocType", "Attendance Regularization"):
 		frappe.logger().info(
-			f"Skipping regularization for {doc.name}: Attendance Regularization DocType not found on this site"
+			f"Skipping regularization check for {doc.name}: DocType not found"
 		)
 		return
 
@@ -363,14 +364,12 @@ def on_employee_checkin_submit(doc, method=None):
 
 	# CRITICAL: Detect late-synced checkins (device was offline)
 	# If punch date is before sync date, trigger full consolidation for that date
-	# This ensures all checkins for that date are properly processed together
 	if checkin_date < sync_date:
 		frappe.logger().info(
 			f"Late-synced checkin detected: {doc.name} | Punch: {checkin_date} | Synced: {sync_date}"
 		)
 
 		# Enqueue consolidation for the punch date in background
-		# This will update existing draft regularizations or create new ones
 		frappe.enqueue(
 			'hamptons.overrides.employee_checkin.consolidate_attendance_for_date',
 			queue='short',
@@ -385,36 +384,12 @@ def on_employee_checkin_submit(doc, method=None):
 		)
 		return
 
-	# For same-day checkins, use the original immediate processing logic
-	# Check if regularization should be created
-	should_create, reason, late_time = should_create_regularization(doc)
-
-	if not should_create:
-		frappe.log_error(
-			message=f"Regularization not created for {doc.name}: {reason}",
-			title="Attendance Regularization Check"
-		)
-		return
-
-	# Get shift assignment and shift type
-	shift_assignment = get_active_shift_assignment(doc.employee, checkin_date)
-
-	if not shift_assignment:
-		frappe.log_error(
-			message=f"No shift assignment found for {doc.employee} on {checkin_date}",
-			title="Attendance Regularization - No Shift Assignment"
-		)
-		return
-
-	shift_type = validate_shift_type(shift_assignment.shift_type)
-
-	# Create or update regularization
-	try:
-		create_or_update_attendance_regularization(doc, shift_assignment, shift_type, late_time)
-		frappe.db.commit()
-	except Exception as e:
-		frappe.log_error(message=str(e), title="Attendance Regularization Creation Error")
-		frappe.throw(_("Failed to create Attendance Regularization: {0}").format(str(e)))
+	# For same-day checkins: DO NOT create regularization immediately
+	# The 8 PM scheduler job will handle this with full context
+	# This prevents incorrect regularizations from individual checkins
+	frappe.logger().debug(
+		f"Checkin {doc.name} recorded. Regularization will be processed by scheduler at 8 PM."
+	)
 
 
 def daily_attendance_regularization_job():
@@ -660,8 +635,22 @@ def consolidate_attendance_for_date(processing_date):
 			if existing_att:
 				continue
 
-			# Auto-mark Present if we have both IN and OUT
+			# Auto-mark Present if we have both IN and OUT and no issues
 			if not needs_regularization and first_in and last_out:
+				# Check if a draft regularization exists that shouldn't
+				# This can happen if an earlier process created it incorrectly
+				incorrect_reg = frappe.db.get_value(
+					"Attendance Regularization",
+					{"employee": emp, "posting_date": processing_date, "docstatus": 0},
+					"name"
+				)
+				if incorrect_reg:
+					# Delete the incorrect draft regularization
+					frappe.delete_doc("Attendance Regularization", incorrect_reg, force=True)
+					frappe.logger().info(
+						f"Deleted incorrect draft regularization {incorrect_reg} for {emp} on {processing_date} - employee is on time"
+					)
+
 				# Auto mark Present
 				attendance = frappe.get_doc({
 					"doctype": "Attendance",
@@ -707,9 +696,15 @@ def consolidate_attendance_for_date(processing_date):
 							})
 							items_added = True
 
-					# Update late time if changed
-					if late_time_val and (not reg.late or late_time_val != reg.late):
-						reg.late = late_time_val
+					# Update late time if there's an actual late value
+					# Clear incorrect late values (like creation time) if employee is not late
+					if late_time_val:
+						if not reg.late or late_time_val != reg.late:
+							reg.late = late_time_val
+							items_added = True
+					elif reg.late:
+						# Employee is NOT late but late field has a value - clear it
+						reg.late = None
 						items_added = True
 
 					if items_added:
@@ -728,7 +723,7 @@ def consolidate_attendance_for_date(processing_date):
 					continue
 
 				# Create new Attendance Regularization with consolidated items
-				reg = frappe.get_doc({
+				reg_data = {
 					"doctype": "Attendance Regularization",
 					"employee": emp,
 					"employee_name": frappe.db.get_value("Employee", emp, "employee_name"),
@@ -736,9 +731,14 @@ def consolidate_attendance_for_date(processing_date):
 					"shift": shift_type_name,
 					"start_time": shift_type.start_time,
 					"end_time": shift_type.end_time,
-					"late": late_time_val,
 					"status": "Pending"
-				})
+				}
+				# IMPORTANT: Only set 'late' field if there's an actual late time
+				# Setting None causes Frappe Time field to use incorrect default
+				if late_time_val:
+					reg_data["late"] = late_time_val
+
+				reg = frappe.get_doc(reg_data)
 				# Add items: first IN and last OUT if they exist
 				# Use inferred_log_type if available, otherwise fall back to log_type
 				for c in [first_in, last_out]:
