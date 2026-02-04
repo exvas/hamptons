@@ -186,6 +186,10 @@ scheduler_events = {
 		"0 20 * * *": [
 			# Consolidate daily checkins into Attendance Regularization at 8:00 PM
 			"hamptons.overrides.employee_checkin.daily_attendance_regularization_job"
+		],
+		"0 */4 * * *": [
+			# Reconcile missing checkins every 4 hours - catches any missed webhook/sync records
+			"hamptons.crosschex_cloud.reconciliation.scheduled_reconciliation_job"
 		]
 	},
 	"hourly": [
