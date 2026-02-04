@@ -513,37 +513,41 @@ def get_data(filters):
                 leave_lookup[(emp_id, current_date)] = la.leave_type
                 current_date += timedelta(days=1)
         
-        # Get holiday lists for all employees
+        # Get holiday lists for all employees (using tabHoliday which is the correct child table)
         try:
             placeholders = ','.join(['%s'] * len(employees_list))
             holiday_data = frappe.db.sql(f"""
                 SELECT
                     e.name as employee_id,
-                    hle.start_date,
-                    hle.end_date,
-                    hle.holiday
+                    h.holiday_date,
+                    h.description,
+                    h.weekly_off
                 FROM `tabEmployee` e
                 LEFT JOIN `tabHoliday List` hl ON e.holiday_list = hl.name
-                LEFT JOIN `tabHoliday List Entry` hle ON hl.name = hle.parent
+                LEFT JOIN `tabHoliday` h ON hl.name = h.parent
                 WHERE e.name IN ({placeholders})
-                AND hle.start_date <= %s
-                AND hle.end_date >= %s
-            """, employees_list + [filters.to_date, filters.from_date], as_dict=True)
-            
-            # Create lookup dictionaries for holidays
+                AND h.holiday_date BETWEEN %s AND %s
+            """, employees_list + [filters.from_date, filters.to_date], as_dict=True)
+
+            # Create lookup dictionaries for holidays and weekly offs from holiday list
             for holiday in holiday_data:
                 emp_id = holiday.employee_id
+                holiday_date = holiday.holiday_date
+
                 if emp_id not in employee_holidays:
                     employee_holidays[emp_id] = []
                 employee_holidays[emp_id].append(holiday)
-                
-                # Create date-based lookup for O(1) access during row processing
-                current_date = holiday.start_date
-                while current_date <= holiday.end_date:
-                    holiday_lookup[(emp_id, current_date)] = True
-                    current_date += timedelta(days=1)
+
+                # Add to holiday lookup for O(1) access
+                holiday_lookup[(emp_id, holiday_date)] = True
+
+                # If this is a weekly_off day, also add to weekoff_lookup
+                # This catches Friday/Saturday marked as weekly_off in Holiday List
+                if holiday.weekly_off == 1:
+                    day_name = holiday_date.strftime('%A')
+                    weekoff_lookup[(emp_id, day_name)] = True
         except Exception as e:
-            # If Holiday List Entry table doesn't exist, log error and continue without holidays
+            # If Holiday table query fails, log error and continue without holidays
             frappe.log_error(f"Error fetching holiday data: {str(e)}")
             employee_holidays = {}
         

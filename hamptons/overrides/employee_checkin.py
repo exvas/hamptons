@@ -7,6 +7,43 @@ from frappe.utils import getdate, get_datetime, now_datetime, time_diff_in_hours
 from datetime import datetime, timedelta
 
 
+def is_holiday_or_weekly_off(employee, check_date):
+	"""
+	Check if a date is a holiday or weekly off for an employee.
+
+	Args:
+		employee: Employee ID
+		check_date: Date to check
+
+	Returns:
+		True if the date is a holiday or weekly off, False otherwise
+	"""
+	check_date = getdate(check_date)
+
+	# Get employee's holiday list
+	holiday_list = frappe.db.get_value("Employee", employee, "holiday_list")
+
+	if not holiday_list:
+		# Try to get default holiday list from company
+		company = frappe.db.get_value("Employee", employee, "company")
+		if company:
+			holiday_list = frappe.db.get_value("Company", company, "default_holiday_list")
+
+	if not holiday_list:
+		return False
+
+	# Check if the date is in the holiday list (includes weekly_off days)
+	is_holiday = frappe.db.exists(
+		"Holiday",
+		{
+			"parent": holiday_list,
+			"holiday_date": check_date
+		}
+	)
+
+	return bool(is_holiday)
+
+
 def get_active_shift_assignment(employee, date=None):
 	"""
 	Get the active Shift Assignment for an employee on a specific date.
@@ -556,8 +593,15 @@ def consolidate_attendance_for_date(processing_date):
 		checks = emp_checks.get(emp, [])
 		
 		# No checkins -> mark based on approved leave or Absent
+		# But first check if it's a holiday or weekly off - don't mark Absent on those days
 		if not checks:
 			try:
+				# Check if this date is a holiday or weekly off for the employee
+				is_holiday_or_weekoff = is_holiday_or_weekly_off(emp, processing_date)
+				if is_holiday_or_weekoff:
+					# Skip creating any attendance record for holidays/weekly offs
+					continue
+
 				# Check approved leave for the day
 				leave = frappe.db.sql(
 					"""
