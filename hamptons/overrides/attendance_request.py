@@ -140,6 +140,12 @@ def send_notification_to_role(doc, role, context, notification_type):
 		context: Email context dictionary
 		notification_type: Type of notification for subject/message
 	"""
+	# Check if outgoing email is enabled
+	from hamptons.utils.email_utils import is_outgoing_email_enabled
+	if not is_outgoing_email_enabled():
+		frappe.logger().info(f"Skipping attendance request notification: No enabled outgoing email account")
+		return
+
 	recipients = get_role_recipients(doc, role)
 
 	if not recipients:
@@ -172,6 +178,12 @@ def send_notification_to_employee(email, employee_name, context, notification_ty
 		context: Email context dictionary
 		notification_type: Type of notification for subject/message
 	"""
+	# Check if outgoing email is enabled
+	from hamptons.utils.email_utils import is_outgoing_email_enabled
+	if not is_outgoing_email_enabled():
+		frappe.logger().info(f"Skipping employee notification: No enabled outgoing email account")
+		return
+
 	if not email:
 		frappe.logger().warning(f"No email found for employee {employee_name}")
 		return

@@ -216,17 +216,20 @@ class LeaveWithdrawalRequest(Document):
 			name=self.name
 		)
 
-		for hr_user in valid_hr_users:
-			try:
-				frappe.sendmail(
-					recipients=[hr_user.parent],
-					subject=subject,
-					message=message,
-					reference_doctype=self.doctype,
-					reference_name=self.name
-				)
-			except Exception:
-				pass  # Continue even if email fails
+		# Check if outgoing email is enabled before sending
+		from hamptons.utils.email_utils import is_outgoing_email_enabled
+		if is_outgoing_email_enabled():
+			for hr_user in valid_hr_users:
+				try:
+					frappe.sendmail(
+						recipients=[hr_user.parent],
+						subject=subject,
+						message=message,
+						reference_doctype=self.doctype,
+						reference_name=self.name
+					)
+				except Exception:
+					pass  # Continue even if email fails
 
 		# Create notification in system
 		for hr_user in valid_hr_users:
@@ -244,6 +247,11 @@ class LeaveWithdrawalRequest(Document):
 
 	def notify_employee_approved(self):
 		"""Notify employee that withdrawal is approved"""
+		# Check if outgoing email is enabled
+		from hamptons.utils.email_utils import is_outgoing_email_enabled
+		if not is_outgoing_email_enabled():
+			return
+
 		employee_user = frappe.db.get_value("Employee", self.employee, "user_id")
 		if not employee_user:
 			return
@@ -277,6 +285,11 @@ class LeaveWithdrawalRequest(Document):
 
 	def notify_employee_rejected(self):
 		"""Notify employee that withdrawal is rejected"""
+		# Check if outgoing email is enabled
+		from hamptons.utils.email_utils import is_outgoing_email_enabled
+		if not is_outgoing_email_enabled():
+			return
+
 		employee_user = frappe.db.get_value("Employee", self.employee, "user_id")
 		if not employee_user:
 			return
