@@ -596,10 +596,52 @@ def consolidate_attendance_for_date(processing_date):
 		# But first check if it's a holiday or weekly off - don't mark Absent on those days
 		if not checks:
 			try:
+				# CRITICAL: Check if attendance already exists (from Attendance Request or other source)
+				existing_att = frappe.db.exists(
+					"Attendance",
+					{"employee": emp, "attendance_date": processing_date, "docstatus": ["<", 2]}
+				)
+				if existing_att:
+					# Attendance already exists (draft or submitted), skip
+					continue
+
 				# Check if this date is a holiday or weekly off for the employee
 				is_holiday_or_weekoff = is_holiday_or_weekly_off(emp, processing_date)
 				if is_holiday_or_weekoff:
 					# Skip creating any attendance record for holidays/weekly offs
+					continue
+
+				# CRITICAL: Check for approved Attendance Request before marking Absent
+				attendance_request = frappe.db.sql(
+					"""
+					SELECT name, reason, half_day
+					FROM `tabAttendance Request`
+					WHERE employee = %s
+					AND docstatus = 1
+					AND %s BETWEEN from_date AND to_date
+					ORDER BY modified DESC
+					LIMIT 1
+					""",
+					(emp, processing_date),
+					as_dict=True
+				)
+				if attendance_request:
+					ar = attendance_request[0]
+					# Create attendance based on Attendance Request
+					is_half_day = int(ar.get("half_day") or 0) == 1
+					att_status = "Half Day" if is_half_day else "Present"
+					attendance = frappe.get_doc({
+						"doctype": "Attendance",
+						"employee": emp,
+						"attendance_date": processing_date,
+						"shift": shift_type_name,
+						"status": att_status,
+						"attendance_request": ar.get("name"),
+						"company": frappe.defaults.get_user_default("Company")
+					})
+					attendance.insert(ignore_permissions=True)
+					attendance.submit()
+					created_attendance += 1
 					continue
 
 				# Check approved leave for the day
