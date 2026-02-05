@@ -320,10 +320,10 @@ def import_single_record(record, device_name="Unknown"):
         order_by="start_date desc"
     )
 
-    # Determine log type from check_type
-    checktype = record.get('checktype', record.get('check_type', 0))
-    log_type_map = {0: "IN", 1: "OUT", 128: "IN", 129: "OUT"}
-    log_type = log_type_map.get(checktype, "IN")
+    # Determine log type using alternating logic (first punch = IN, then alternate)
+    # This is more reliable than trusting the device's checktype value
+    from hamptons.crosschex_cloud.api.attendance import determine_log_type
+    log_type = determine_log_type(employee['name'], checkin_time)
 
     # Create Employee Checkin
     checkin_doc = frappe.new_doc("Employee Checkin")

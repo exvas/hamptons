@@ -9,6 +9,40 @@ logMap = {
     129: "OUT"
 }
 
+
+def determine_log_type(employee, checkin_time):
+    """
+    Determine log_type using alternating logic based on existing checkins for the day.
+
+    First punch of the day is always 'IN', then alternate IN/OUT.
+    This is more reliable than trusting device punch type which can be wrong.
+
+    Args:
+        employee: Employee ID
+        checkin_time: datetime of the punch
+
+    Returns:
+        'IN' or 'OUT'
+    """
+    check_date = checkin_time.date() if hasattr(checkin_time, 'date') else checkin_time
+
+    # Get existing checkins for this employee on this date, ordered by time
+    existing_checkins = frappe.db.sql("""
+        SELECT log_type FROM `tabEmployee Checkin`
+        WHERE employee = %s
+        AND DATE(time) = %s
+        ORDER BY time DESC
+        LIMIT 1
+    """, (employee, check_date), as_dict=True)
+
+    if not existing_checkins:
+        # First punch of the day is always IN
+        return 'IN'
+
+    # Alternate based on last checkin
+    last_log_type = existing_checkins[0].get('log_type', 'IN')
+    return 'OUT' if last_log_type == 'IN' else 'IN'
+
 def debug_table_structure():
     """Debug function to check Employee Checkin table structure"""
     try:
@@ -116,8 +150,7 @@ def create_attendance_log(args):
             
             # Get employee details and attendance_device_id for logging and shift lookup
             employee_details = frappe.db.get_value("Employee", employee, ["employee_name", "department", "designation", "attendance_device_id"], as_dict=True)
-            
-            log_type = logMap.get(i.get("checktype", i.get("check_type", 0)), "IN")  # Handle both field names
+
             device_id = i.get("device", {}).get("name", "") if i.get("device") else ""
             
             # Parse checktime from CrossChex - preserve device local time
@@ -158,10 +191,14 @@ def create_attendance_log(args):
             else:
                 checkin_time = datetime.now()
                 frappe.log_error(
-                    message=f"No checktime provided in payload: {json.dumps(i)}", 
+                    message=f"No checktime provided in payload: {json.dumps(i)}",
                     title="CrossChex Webhook - Missing checktime"
                 )
-            
+
+            # Determine log_type using alternating logic (first punch = IN, then alternate)
+            # This is more reliable than trusting the device's checktype value
+            log_type = determine_log_type(employee, checkin_time)
+
             # Try to get shift from payload first, then from shift assignment
             shift = None
             if i.get("device") and i.get("device").get("shift"):
