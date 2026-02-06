@@ -696,7 +696,7 @@ def consolidate_attendance_for_date(processing_date):
 		# Many biometric devices mark all checkins as "IN", so we infer from time sequence
 		from hamptons.overrides.attendance_utils import get_first_in_last_out
 		first_in, last_out = get_first_in_last_out(checks, use_inferred=True)
-		
+
 		# Calculate late/early times using the new utility function
 		from hamptons.overrides.attendance_utils import calculate_late_early_times
 
@@ -709,6 +709,22 @@ def consolidate_attendance_for_date(processing_date):
 
 		late_enabled = bool(getattr(shift_type, "enable_late_entry_marking", False))
 
+		# Calculate working hours for Half Day detection
+		working_hours = 0
+		if first_in_time and last_out_time:
+			working_hours = time_diff_in_hours(last_out_time, first_in_time)
+
+		# Get half day and absent thresholds from shift type
+		half_day_threshold = float(getattr(shift_type, "working_hours_threshold_for_half_day", 0) or 0)
+		absent_threshold = float(getattr(shift_type, "working_hours_threshold_for_absent", 0) or 0)
+
+		# Determine if this should be marked as Half Day based on working hours
+		is_half_day_by_hours = False
+		if half_day_threshold > 0 and working_hours > 0:
+			# If worked less than half day threshold but more than absent threshold
+			if working_hours < half_day_threshold and working_hours >= absent_threshold:
+				is_half_day_by_hours = True
+
 		# Regularization is needed if:
 		# 1. Employee was late (beyond grace period)
 		# 2. Employee left early (before shift end)
@@ -719,6 +735,30 @@ def consolidate_attendance_for_date(processing_date):
 			# Avoid duplicates: if Attendance already exists for the date, skip creation
 			existing_att = frappe.db.exists("Attendance", {"employee": emp, "attendance_date": processing_date, "docstatus": ["<", 2]})
 			if existing_att:
+				continue
+
+			# AUTO HALF DAY: If employee worked less than half day threshold, mark as Half Day
+			if is_half_day_by_hours and first_in and last_out:
+				attendance = frappe.get_doc({
+					"doctype": "Attendance",
+					"employee": emp,
+					"employee_name": frappe.db.get_value("Employee", emp, "employee_name"),
+					"attendance_date": processing_date,
+					"shift": shift_type_name,
+					"status": "Half Day",
+					"company": frappe.defaults.get_user_default("Company")
+				})
+				attendance.insert(ignore_permissions=True)
+				attendance.submit()
+				# Add comment explaining why Half Day
+				frappe.get_doc({
+					"doctype": "Comment",
+					"comment_type": "Comment",
+					"reference_doctype": "Attendance",
+					"reference_name": attendance.name,
+					"content": f"Auto-marked Half Day: Worked {working_hours:.2f} hours (threshold: {half_day_threshold} hours)"
+				}).insert(ignore_permissions=True)
+				created_attendance += 1
 				continue
 
 			# Auto-mark Present if we have both IN and OUT and no issues
