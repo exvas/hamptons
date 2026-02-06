@@ -1,4 +1,15 @@
 frappe.listview_settings['Attendance Regularization'] = {
+  add_fields: ["status"],
+  get_indicator: function(doc) {
+    // Show status field as indicator instead of docstatus
+    if (doc.status === "Pending") {
+      return [__("Pending"), "orange", "status,=,Pending"];
+    } else if (doc.status === "Approved") {
+      return [__("Approved"), "green", "status,=,Approved"];
+    } else if (doc.status === "Rejected") {
+      return [__("Rejected"), "red", "status,=,Rejected"];
+    }
+  },
   onload: function(listview) {
     const runSync = function() {
       frappe.confirm(__('Run manual sync for yesterday and last 365 days?<br><br>This will run in the background and may take several minutes.'), () => {
