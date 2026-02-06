@@ -47,7 +47,9 @@ doctype_js = {
 	"Employee Checkin" : "public/js/employee_checkin.js",
 	"Leave Application" : "public/js/leave_application.js"
 }
-# doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
+doctype_list_js = {
+	"Attendance Regularization" : "public/js/attendance_regularization_list.js"
+}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
 

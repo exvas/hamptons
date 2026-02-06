@@ -1,14 +1,18 @@
 frappe.listview_settings['Attendance Regularization'] = {
   add_fields: ["status"],
+  has_indicator_for_draft: true,
   get_indicator: function(doc) {
-    // Show status field as indicator instead of docstatus
-    if (doc.status === "Pending") {
+    // Override default docstatus indicator with custom status field
+    var status = doc.status;
+    if (status === "Pending") {
       return [__("Pending"), "orange", "status,=,Pending"];
-    } else if (doc.status === "Approved") {
+    } else if (status === "Approved") {
       return [__("Approved"), "green", "status,=,Approved"];
-    } else if (doc.status === "Rejected") {
+    } else if (status === "Rejected") {
       return [__("Rejected"), "red", "status,=,Rejected"];
     }
+    // Fallback for any other status
+    return [__(status || "Unknown"), "gray", "status,=," + (status || "")];
   },
   onload: function(listview) {
     const runSync = function() {
