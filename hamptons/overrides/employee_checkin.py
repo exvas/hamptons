@@ -725,6 +725,30 @@ def consolidate_attendance_for_date(processing_date):
 			if working_hours < half_day_threshold and working_hours >= absent_threshold:
 				is_half_day_by_hours = True
 
+		# Check for approved Attendance Request (e.g. Half Day on duty + afternoon checkins = Present)
+		attendance_request_for_day = frappe.db.sql(
+			"""
+			SELECT name, reason, half_day
+			FROM `tabAttendance Request`
+			WHERE employee = %s
+			AND docstatus = 1
+			AND %s BETWEEN from_date AND to_date
+			ORDER BY modified DESC
+			LIMIT 1
+			""",
+			(emp, processing_date),
+			as_dict=True
+		)
+		has_half_day_request = False
+		if attendance_request_for_day:
+			ar = attendance_request_for_day[0]
+			has_half_day_request = int(ar.get("half_day") or 0) == 1
+
+		# If employee has a Half Day Attendance Request AND also has checkins,
+		# the request covers one half and checkins cover the other = full day Present
+		if has_half_day_request and first_in_time and last_out_time:
+			is_half_day_by_hours = False  # Override: both halves are covered
+
 		# Regularization is needed if:
 		# 1. Employee was late (beyond grace period)
 		# 2. Employee left early (before shift end)
