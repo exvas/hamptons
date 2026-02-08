@@ -45,7 +45,8 @@ app_license = "mit"
 # include js in doctype views
 doctype_js = {
 	"Employee Checkin" : "public/js/employee_checkin.js",
-	"Leave Application" : "public/js/leave_application.js"
+	"Leave Application" : "public/js/leave_application.js",
+	"Expense Claim" : "public/js/expense_claim.js"
 }
 doctype_list_js = {
 	"Attendance Regularization" : "public/js/attendance_regularization_list.js"
@@ -171,6 +172,9 @@ doc_events = {
 	},
 	"Attendance Request": {
 		"on_update": "hamptons.overrides.attendance_request.on_update_attendance_request"
+	},
+	"Expense Claim": {
+		"on_update": "hamptons.overrides.expense_claim.on_update_expense_claim"
 	}
 }
 
