@@ -77,12 +77,26 @@ def hod_is_hr_approver(employee):
 
 def validate_leave_application(doc, method=None):
 	"""
-	Validate Leave Application - show warning for Annual Leave without 2 weeks advance notice
+	Validate Leave Application:
+	- Sick Leave requires attachment (medical certificate)
+	- Annual Leave: show warning for short notice
 
 	Args:
 		doc: Leave Application document
 		method: Method name (not used)
 	"""
+	# Sick Leave: require attachment before submission
+	if doc.leave_type == "Sick Leave" and doc.docstatus == 1:
+		attachments = frappe.get_all("File", filters={
+			"attached_to_doctype": "Leave Application",
+			"attached_to_name": doc.name
+		})
+		if not attachments:
+			frappe.throw(
+				_("Please attach a medical certificate/document before submitting a Sick Leave application."),
+				title=_("Attachment Required")
+			)
+
 	# Show warning message for Annual Leave without 2 weeks advance notice
 	if doc.leave_type == "Annual Leave" and doc.from_date:
 		minimum_from_date = add_days(today(), 14)

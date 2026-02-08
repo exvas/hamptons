@@ -40,6 +40,42 @@ frappe.ui.form.on('Leave Application', {
     leave_type: function(frm) {
         // Check validation when leave type changes
         check_leave_advance_notice(frm);
+        check_sick_leave_attachment(frm);
+    },
+
+    before_save: function(frm) {
+        // Remind about attachment for Sick Leave (attachment can only be added after first save)
+        if (frm.doc.leave_type === 'Sick Leave' && frm.is_new()) {
+            frappe.show_alert({
+                message: __('Please attach a medical certificate/document after saving.'),
+                indicator: 'orange'
+            }, 7);
+        }
+    },
+
+    after_save: function(frm) {
+        // Check attachment after save for Sick Leave
+        check_sick_leave_attachment(frm);
+    },
+
+    before_workflow_action: function(frm) {
+        // Block workflow actions (submit/approve) if Sick Leave has no attachment
+        if (frm.doc.leave_type === 'Sick Leave') {
+            let attachments = frm.attachments.get_attachments();
+            if (!attachments || attachments.length === 0) {
+                frappe.throw(__('Please attach a medical certificate/document before submitting a Sick Leave application.'));
+            }
+        }
+    },
+
+    before_submit: function(frm) {
+        // Block submit if Sick Leave has no attachment
+        if (frm.doc.leave_type === 'Sick Leave') {
+            let attachments = frm.attachments.get_attachments();
+            if (!attachments || attachments.length === 0) {
+                frappe.throw(__('Please attach a medical certificate/document before submitting a Sick Leave application.'));
+            }
+        }
     },
 
     from_date: function(frm) {
@@ -102,6 +138,28 @@ function show_withdraw_dialog(frm) {
         }
     });
     d.show();
+}
+
+function check_sick_leave_attachment(frm) {
+    if (frm.doc.leave_type === 'Sick Leave' && !frm.is_new()) {
+        let attachments = frm.attachments ? frm.attachments.get_attachments() : [];
+        if (!attachments || attachments.length === 0) {
+            frm.dashboard.set_headline_alert(
+                __('Attachment Required: Please attach a medical certificate/document for Sick Leave.'),
+                'red'
+            );
+        } else {
+            frm.dashboard.clear_headline();
+        }
+    } else if (frm.doc.leave_type === 'Sick Leave' && frm.is_new()) {
+        frm.set_intro(
+            __('Note: A medical certificate/document attachment is required for Sick Leave. You can attach it after saving the form.'),
+            'orange'
+        );
+    } else {
+        // Clear sick leave messages if leave type changed
+        frm.dashboard.clear_headline();
+    }
 }
 
 function check_leave_advance_notice(frm) {
