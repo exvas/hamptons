@@ -171,24 +171,18 @@ def get_data(filters):
 			st.start_time as shift_start,
 			st.end_time as shift_end,
 			CASE
-				-- If there's an actual IN checkin, use the min IN time
-				WHEN MAX(CASE WHEN ec.log_type = 'IN' THEN 1 ELSE 0 END) = 1
-					THEN MIN(CASE WHEN ec.log_type = 'IN' THEN ec.time ELSE NULL END)
-				-- If multiple checkins exist (2+) but no IN type, use the first one as IN
-				WHEN COUNT(*) > 1
-					THEN MIN(ec.time)
-				-- Single checkin with OUT type only = no check-in (NULL)
+				-- Multiple checkins: first checkin is always treated as IN
+				-- (matches consolidation "simple" strategy)
+				WHEN COUNT(*) > 1 THEN MIN(ec.time)
+				-- Single checkin: only treat as IN if log_type is IN
 				ELSE CASE WHEN MIN(ec.log_type) = 'OUT' THEN NULL ELSE MIN(ec.time) END
 			END as first_in,
 			CASE
-				-- If there's an actual OUT checkin, use the max OUT time
-				WHEN MAX(CASE WHEN ec.log_type = 'OUT' THEN 1 ELSE 0 END) = 1
-					THEN MAX(CASE WHEN ec.log_type = 'OUT' THEN ec.time ELSE NULL END)
-				-- If multiple checkins exist (2+), treat the last one as OUT
-				WHEN COUNT(*) > 1
-					THEN MAX(ec.time)
-				-- Single checkin with no OUT type = no checkout (NULL)
-				ELSE NULL
+				-- Multiple checkins: last checkin is always treated as OUT
+				-- (matches consolidation "simple" strategy, regardless of log_type)
+				WHEN COUNT(*) > 1 THEN MAX(ec.time)
+				-- Single checkin: only treat as OUT if log_type is OUT
+				ELSE CASE WHEN MIN(ec.log_type) = 'OUT' THEN MIN(ec.time) ELSE NULL END
 			END as last_out,
 			COUNT(*) as total_checkins,
 			GROUP_CONCAT(DISTINCT ec.device_id ORDER BY ec.time SEPARATOR ', ') as device_id,

@@ -756,49 +756,78 @@ def consolidate_attendance_for_date(processing_date):
 		# Only auto-mark Present if no issues detected
 
 		try:
-			# Avoid duplicates: if Attendance already exists for the date, skip creation
+			# Avoid duplicates: if Attendance already exists for the date, skip attendance creation
+			# but still check if regularization is needed
 			existing_att = frappe.db.exists("Attendance", {"employee": emp, "attendance_date": processing_date, "docstatus": ["<", 2]})
 			if existing_att:
-				continue
+				# Update existing attendance with in_time/out_time/working_hours if missing
+				if first_in_time and last_out_time:
+					att_doc = frappe.get_doc("Attendance", existing_att)
+					updated = False
+					if not att_doc.in_time:
+						att_doc.db_set("in_time", first_in_time, update_modified=False)
+						updated = True
+					if not att_doc.out_time:
+						att_doc.db_set("out_time", last_out_time, update_modified=False)
+						updated = True
+					if not att_doc.working_hours or float(att_doc.working_hours) == 0:
+						att_doc.db_set("working_hours", round(working_hours, 2), update_modified=False)
+						updated = True
+					if late_time_val and not att_doc.late_entry:
+						att_doc.db_set("late_entry", 1, update_modified=False)
+						updated = True
+					if result.get('early_exit_time') and not att_doc.early_exit:
+						att_doc.db_set("early_exit", 1, update_modified=False)
+						updated = True
+				# Don't skip - fall through to regularization check below
+			else:
+				# AUTO HALF DAY: If employee worked less than half day threshold, mark as Half Day
+				if is_half_day_by_hours and first_in and last_out:
+					attendance = frappe.get_doc({
+						"doctype": "Attendance",
+						"employee": emp,
+						"employee_name": frappe.db.get_value("Employee", emp, "employee_name"),
+						"attendance_date": processing_date,
+						"shift": shift_type_name,
+						"status": "Half Day",
+						"in_time": first_in_time,
+						"out_time": last_out_time,
+						"working_hours": round(working_hours, 2),
+						"late_entry": 1 if late_time_val else 0,
+						"early_exit": 1 if result.get('early_exit_time') else 0,
+						"company": frappe.defaults.get_user_default("Company")
+					})
+					attendance.insert(ignore_permissions=True)
+					attendance.submit()
+					# Add comment explaining why Half Day
+					frappe.get_doc({
+						"doctype": "Comment",
+						"comment_type": "Comment",
+						"reference_doctype": "Attendance",
+						"reference_name": attendance.name,
+						"content": f"Auto-marked Half Day: Worked {working_hours:.2f} hours (threshold: {half_day_threshold} hours)"
+					}).insert(ignore_permissions=True)
+					created_attendance += 1
 
-			# AUTO HALF DAY: If employee worked less than half day threshold, mark as Half Day
-			if is_half_day_by_hours and first_in and last_out:
-				attendance = frappe.get_doc({
-					"doctype": "Attendance",
-					"employee": emp,
-					"employee_name": frappe.db.get_value("Employee", emp, "employee_name"),
-					"attendance_date": processing_date,
-					"shift": shift_type_name,
-					"status": "Half Day",
-					"company": frappe.defaults.get_user_default("Company")
-				})
-				attendance.insert(ignore_permissions=True)
-				attendance.submit()
-				# Add comment explaining why Half Day
-				frappe.get_doc({
-					"doctype": "Comment",
-					"comment_type": "Comment",
-					"reference_doctype": "Attendance",
-					"reference_name": attendance.name,
-					"content": f"Auto-marked Half Day: Worked {working_hours:.2f} hours (threshold: {half_day_threshold} hours)"
-				}).insert(ignore_permissions=True)
-				created_attendance += 1
-				continue
-
-			# ALWAYS create attendance when employee has both IN and OUT checkins
-			if first_in and last_out:
-				attendance = frappe.get_doc({
-					"doctype": "Attendance",
-					"employee": emp,
-					"employee_name": frappe.db.get_value("Employee", emp, "employee_name"),
-					"attendance_date": processing_date,
-					"shift": shift_type_name,
-					"status": "Present",
-					"company": frappe.defaults.get_user_default("Company")
-				})
-				attendance.insert(ignore_permissions=True)
-				attendance.submit()
-				created_attendance += 1
+				# ALWAYS create attendance when employee has both IN and OUT checkins
+				elif first_in and last_out:
+					attendance = frappe.get_doc({
+						"doctype": "Attendance",
+						"employee": emp,
+						"employee_name": frappe.db.get_value("Employee", emp, "employee_name"),
+						"attendance_date": processing_date,
+						"shift": shift_type_name,
+						"status": "Present",
+						"in_time": first_in_time,
+						"out_time": last_out_time,
+						"working_hours": round(working_hours, 2),
+						"late_entry": 1 if late_time_val else 0,
+						"early_exit": 1 if result.get('early_exit_time') else 0,
+						"company": frappe.defaults.get_user_default("Company")
+					})
+					attendance.insert(ignore_permissions=True)
+					attendance.submit()
+					created_attendance += 1
 
 			# If regularization is needed (late entry/early exit), handle it separately
 			if needs_regularization and first_in and last_out:
@@ -854,10 +883,10 @@ def consolidate_attendance_for_date(processing_date):
 						"end_time": shift_type.end_time,
 						"status": "Pending"
 					}
-					if late_time_val:
-						reg_data["late"] = late_time_val
 
 					reg = frappe.get_doc(reg_data)
+					# Explicitly set late time (Frappe auto-fills Time fields with current time if not set)
+					reg.late = late_time_val if late_time_val else ""
 					for c in [first_in, last_out]:
 						if c:
 							log_type = c.get("inferred_log_type", c.get("log_type", "IN"))
