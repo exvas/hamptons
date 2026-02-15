@@ -829,8 +829,8 @@ def consolidate_attendance_for_date(processing_date):
 					attendance.submit()
 					created_attendance += 1
 
-				# Single checkin (IN only, no OUT) - still create attendance as Present
-				# with in_time only, and regularization will be created for missing checkout
+				# Single checkin (IN only, no OUT) - mark as Absent
+				# Employee must request attendance / regularization approval to change to Present
 				elif first_in and not last_out:
 					attendance = frappe.get_doc({
 						"doctype": "Attendance",
@@ -838,9 +838,8 @@ def consolidate_attendance_for_date(processing_date):
 						"employee_name": frappe.db.get_value("Employee", emp, "employee_name"),
 						"attendance_date": processing_date,
 						"shift": shift_type_name,
-						"status": "Present",
+						"status": "Absent",
 						"in_time": first_in_time,
-						"late_entry": 1 if late_time_val else 0,
 						"company": frappe.defaults.get_user_default("Company")
 					})
 					attendance.insert(ignore_permissions=True)

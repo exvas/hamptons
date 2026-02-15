@@ -49,143 +49,161 @@ class AttendanceRegularization(Document):
 
 	@frappe.whitelist()
 	def approve(self):
-		"""Approve the regularization request and create Present attendance"""
+		"""Approve the regularization request - update Absent to Present or create Present attendance"""
 		if self.status not in ("Pending", "Approved"):
 			frappe.throw(_("Only Pending or Approved requests can be approved"))
 
 		if self.docstatus != 0:
 			frappe.throw(_("Only draft documents can be approved"))
-		
+
 		if not self.shift:
 			frappe.throw(_("Shift Type is required to approve Attendance Regularization"))
-		
+
 		attendance_date = getdate(self.posting_date)
-		
-		# Check if attendance already exists
-		existing_attendance = frappe.db.exists(
-			"Attendance",
-			{
-				"employee": self.employee,
-				"attendance_date": attendance_date,
-				"docstatus": ["<", 2]
-			}
-		)
-		
-		if existing_attendance:
-			frappe.throw(
-				_("Attendance already exists for {0} on {1}").format(
-					self.employee_name,
-					frappe.format(attendance_date, {"fieldtype": "Date"})
-				)
-			)
-		
-		# Create Present attendance
-		attendance = frappe.get_doc({
-			"doctype": "Attendance",
-			"employee": self.employee,
-			"employee_name": self.employee_name,
-			"attendance_date": attendance_date,
-			"shift": self.shift,
-			"status": "Present",
-			"custom_attendance_regularization": self.name,
-			"company": frappe.defaults.get_user_default("Company")
-		})
-		
+
 		try:
-			attendance.insert(ignore_permissions=True)
-			attendance.submit()
-			
-			# Update status to Approved
-			self.status = "Approved"
-			self.attendance = attendance.name
-			
-			# Submit the Attendance Regularization document
-			self.submit()
-			frappe.db.commit()
-			
-			frappe.msgprint(
-				_("Attendance Regularization approved and submitted. Attendance {0} created as Present").format(
-					frappe.utils.get_link_to_form("Attendance", attendance.name)
-				),
-				indicator="green"
+			# Check if attendance already exists (e.g. Absent from single-checkin consolidation)
+			existing_attendance = frappe.db.exists(
+				"Attendance",
+				{
+					"employee": self.employee,
+					"attendance_date": attendance_date,
+					"docstatus": 1
+				}
 			)
-			
+
+			if existing_attendance:
+				# Update existing Absent attendance to Present
+				att_doc = frappe.get_doc("Attendance", existing_attendance)
+				if att_doc.status == "Absent":
+					frappe.db.sql("""
+						UPDATE `tabAttendance`
+						SET status = 'Present', custom_attendance_regularization = %s
+						WHERE name = %s
+					""", (self.name, existing_attendance))
+
+				self.status = "Approved"
+				self.attendance = existing_attendance
+				self.submit()
+				frappe.db.commit()
+
+				frappe.msgprint(
+					_("Attendance Regularization approved. Attendance {0} updated to Present").format(
+						frappe.utils.get_link_to_form("Attendance", existing_attendance)
+					),
+					indicator="green"
+				)
+			else:
+				# No existing attendance - create new Present attendance
+				attendance = frappe.get_doc({
+					"doctype": "Attendance",
+					"employee": self.employee,
+					"employee_name": self.employee_name,
+					"attendance_date": attendance_date,
+					"shift": self.shift,
+					"status": "Present",
+					"custom_attendance_regularization": self.name,
+					"company": frappe.defaults.get_user_default("Company")
+				})
+				attendance.insert(ignore_permissions=True)
+				attendance.submit()
+
+				self.status = "Approved"
+				self.attendance = attendance.name
+				self.submit()
+				frappe.db.commit()
+
+				frappe.msgprint(
+					_("Attendance Regularization approved. Attendance {0} created as Present").format(
+						frappe.utils.get_link_to_form("Attendance", attendance.name)
+					),
+					indicator="green"
+				)
+
 		except Exception as e:
 			frappe.log_error(
 				message=str(e),
-				title=f"Attendance Creation Failed - {self.name}"
+				title=f"Attendance Approval Failed - {self.name}"
 			)
-			frappe.throw(_("Failed to create attendance: {0}").format(str(e)))
+			frappe.throw(_("Failed to approve attendance: {0}").format(str(e)))
 	
 	@frappe.whitelist()
 	def reject(self):
-		"""Reject the regularization request and create Absent attendance"""
+		"""Reject the regularization request - keep Absent or create Absent attendance"""
 		if self.status not in ("Pending", "Rejected"):
 			frappe.throw(_("Only Pending or Rejected requests can be rejected"))
 
 		if self.docstatus != 0:
 			frappe.throw(_("Only draft documents can be rejected"))
-		
+
 		if not self.shift:
 			frappe.throw(_("Shift Type is required to reject Attendance Regularization"))
-		
+
 		attendance_date = getdate(self.posting_date)
-		
-		# Check if attendance already exists
-		existing_attendance = frappe.db.exists(
-			"Attendance",
-			{
-				"employee": self.employee,
-				"attendance_date": attendance_date,
-				"docstatus": ["<", 2]
-			}
-		)
-		
-		if existing_attendance:
-			frappe.throw(
-				_("Attendance already exists for {0} on {1}").format(
-					self.employee_name,
-					frappe.format(attendance_date, {"fieldtype": "Date"})
-				)
-			)
-		
-		# Create Absent attendance
-		attendance = frappe.get_doc({
-			"doctype": "Attendance",
-			"employee": self.employee,
-			"employee_name": self.employee_name,
-			"attendance_date": attendance_date,
-			"shift": self.shift,
-			"status": "Absent",
-			"custom_attendance_regularization": self.name,
-			"company": frappe.defaults.get_user_default("Company")
-		})
-		
+
 		try:
-			attendance.insert(ignore_permissions=True)
-			attendance.submit()
-			
-			# Update status to Rejected
-			self.status = "Rejected"
-			self.attendance = attendance.name
-			
-			# Submit the Attendance Regularization document
-			self.submit()
-			frappe.db.commit()
-			
-			frappe.msgprint(
-				_("Attendance Regularization rejected and submitted. Attendance {0} marked as Absent").format(
-					frappe.utils.get_link_to_form("Attendance", attendance.name)
-				),
-				indicator="orange"
+			# Check if attendance already exists (e.g. Absent from single-checkin consolidation)
+			existing_attendance = frappe.db.exists(
+				"Attendance",
+				{
+					"employee": self.employee,
+					"attendance_date": attendance_date,
+					"docstatus": 1
+				}
 			)
-			
+
+			if existing_attendance:
+				# Absent attendance already exists - just link and submit AR
+				frappe.db.sql("""
+					UPDATE `tabAttendance`
+					SET custom_attendance_regularization = %s
+					WHERE name = %s
+				""", (self.name, existing_attendance))
+
+				self.status = "Rejected"
+				self.attendance = existing_attendance
+				self.submit()
+				frappe.db.commit()
+
+				frappe.msgprint(
+					_("Attendance Regularization rejected. Attendance {0} remains Absent").format(
+						frappe.utils.get_link_to_form("Attendance", existing_attendance)
+					),
+					indicator="orange"
+				)
+			else:
+				# No existing attendance - create new Absent attendance
+				attendance = frappe.get_doc({
+					"doctype": "Attendance",
+					"employee": self.employee,
+					"employee_name": self.employee_name,
+					"attendance_date": attendance_date,
+					"shift": self.shift,
+					"status": "Absent",
+					"custom_attendance_regularization": self.name,
+					"company": frappe.defaults.get_user_default("Company")
+				})
+				attendance.insert(ignore_permissions=True)
+				attendance.submit()
+
+				self.status = "Rejected"
+				self.attendance = attendance.name
+				self.submit()
+				frappe.db.commit()
+
+				frappe.msgprint(
+					_("Attendance Regularization rejected. Attendance {0} marked as Absent").format(
+						frappe.utils.get_link_to_form("Attendance", attendance.name)
+					),
+					indicator="orange"
+				)
+
 		except Exception as e:
 			frappe.log_error(
 				message=str(e),
-				title=f"Attendance Creation Failed - {self.name}"
+				title=f"Attendance Rejection Failed - {self.name}"
 			)
-			frappe.throw(_("Failed to create attendance: {0}").format(str(e)))
+			frappe.throw(_("Failed to reject attendance: {0}").format(str(e)))
 	
 	def on_cancel(self):
 		"""Handle cancellation of Attendance Regularization and cancel all linked attendance records"""
@@ -277,48 +295,53 @@ def auto_approve_regularization(regularization_name):
 	try:
 		doc = frappe.get_doc("Attendance Regularization", regularization_name)
 
-		# Double-check it's still in draft and Approved status
 		if doc.docstatus == 0 and doc.status == "Approved":
-			# Check if attendance already exists
 			attendance_date = getdate(doc.posting_date)
+
+			# Check if attendance already exists (e.g. Absent from single-checkin)
 			existing_attendance = frappe.db.exists(
 				"Attendance",
 				{
 					"employee": doc.employee,
 					"attendance_date": attendance_date,
-					"docstatus": ["<", 2]
+					"docstatus": 1
 				}
 			)
 
 			if existing_attendance:
-				frappe.log_error(
-					message=f"Attendance already exists for {doc.employee_name} on {attendance_date}",
-					title=f"Auto-Approval Skipped - {regularization_name}"
-				)
-				return
+				# Update existing Absent attendance to Present
+				att_doc = frappe.get_doc("Attendance", existing_attendance)
+				if att_doc.status == "Absent":
+					frappe.db.sql("""
+						UPDATE `tabAttendance`
+						SET status = 'Present', custom_attendance_regularization = %s
+						WHERE name = %s
+					""", (doc.name, existing_attendance))
 
-			# Create Present attendance
-			attendance = frappe.get_doc({
-				"doctype": "Attendance",
-				"employee": doc.employee,
-				"employee_name": doc.employee_name,
-				"attendance_date": attendance_date,
-				"shift": doc.shift,
-				"status": "Present",
-				"custom_attendance_regularization": doc.name,
-				"company": frappe.defaults.get_user_default("Company")
-			})
+				doc.attendance = existing_attendance
+				doc.submit()
+				frappe.db.commit()
+			else:
+				# Create new Present attendance
+				attendance = frappe.get_doc({
+					"doctype": "Attendance",
+					"employee": doc.employee,
+					"employee_name": doc.employee_name,
+					"attendance_date": attendance_date,
+					"shift": doc.shift,
+					"status": "Present",
+					"custom_attendance_regularization": doc.name,
+					"company": frappe.defaults.get_user_default("Company")
+				})
+				attendance.insert(ignore_permissions=True)
+				attendance.submit()
 
-			attendance.insert(ignore_permissions=True)
-			attendance.submit()
-
-			# Update regularization
-			doc.attendance = attendance.name
-			doc.submit()
-			frappe.db.commit()
+				doc.attendance = attendance.name
+				doc.submit()
+				frappe.db.commit()
 
 			frappe.logger().info(
-				f"Auto-approved regularization {regularization_name} and created attendance {attendance.name}"
+				f"Auto-approved regularization {regularization_name}"
 			)
 	except Exception as e:
 		frappe.log_error(
@@ -335,48 +358,51 @@ def auto_reject_regularization(regularization_name):
 	try:
 		doc = frappe.get_doc("Attendance Regularization", regularization_name)
 
-		# Double-check it's still in draft and Rejected status
 		if doc.docstatus == 0 and doc.status == "Rejected":
-			# Check if attendance already exists
 			attendance_date = getdate(doc.posting_date)
+
+			# Check if Absent attendance already exists (from single-checkin consolidation)
 			existing_attendance = frappe.db.exists(
 				"Attendance",
 				{
 					"employee": doc.employee,
 					"attendance_date": attendance_date,
-					"docstatus": ["<", 2]
+					"docstatus": 1
 				}
 			)
 
 			if existing_attendance:
-				frappe.log_error(
-					message=f"Attendance already exists for {doc.employee_name} on {attendance_date}",
-					title=f"Auto-Rejection Skipped - {regularization_name}"
-				)
-				return
+				# Absent already exists - just link and submit AR
+				frappe.db.sql("""
+					UPDATE `tabAttendance`
+					SET custom_attendance_regularization = %s
+					WHERE name = %s
+				""", (doc.name, existing_attendance))
 
-			# Create Absent attendance
-			attendance = frappe.get_doc({
-				"doctype": "Attendance",
-				"employee": doc.employee,
-				"employee_name": doc.employee_name,
-				"attendance_date": attendance_date,
-				"shift": doc.shift,
-				"status": "Absent",
-				"custom_attendance_regularization": doc.name,
-				"company": frappe.defaults.get_user_default("Company")
-			})
+				doc.attendance = existing_attendance
+				doc.submit()
+				frappe.db.commit()
+			else:
+				# Create new Absent attendance
+				attendance = frappe.get_doc({
+					"doctype": "Attendance",
+					"employee": doc.employee,
+					"employee_name": doc.employee_name,
+					"attendance_date": attendance_date,
+					"shift": doc.shift,
+					"status": "Absent",
+					"custom_attendance_regularization": doc.name,
+					"company": frappe.defaults.get_user_default("Company")
+				})
+				attendance.insert(ignore_permissions=True)
+				attendance.submit()
 
-			attendance.insert(ignore_permissions=True)
-			attendance.submit()
-
-			# Update regularization
-			doc.attendance = attendance.name
-			doc.submit()
-			frappe.db.commit()
+				doc.attendance = attendance.name
+				doc.submit()
+				frappe.db.commit()
 
 			frappe.logger().info(
-				f"Auto-rejected regularization {regularization_name} and created attendance {attendance.name}"
+				f"Auto-rejected regularization {regularization_name}"
 			)
 	except Exception as e:
 		frappe.log_error(
