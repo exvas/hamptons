@@ -196,6 +196,10 @@ scheduler_events = {
 		"0 */4 * * *": [
 			# Reconcile missing checkins every 4 hours - catches any missed webhook/sync records
 			"hamptons.crosschex_cloud.reconciliation.scheduled_reconciliation_job"
+		],
+		"0 8 * * *": [
+			# Send family visa expiry alerts daily at 8:00 AM
+			"hamptons.utils.visa_notifications.send_visa_expiry_alerts"
 		]
 	},
 	"hourly": [
@@ -290,7 +294,10 @@ fixtures = [
                     "Leave Type-custom_gender_specific",
                     "Leave Type-custom_nationality_specific",
                     "Leave Type-custom_religion_specific",
-                    "Leave Type-custom_once_in_service"
+                    "Leave Type-custom_once_in_service",
+                    # Family Visa Custom Fields
+                    "Employee-custom_family_member_id_card",
+                    "Employee-custom_family_visa_date"
                 ]
             ]
         ]
