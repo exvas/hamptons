@@ -328,20 +328,6 @@ fixtures = [
             ]
         ]
     },
-    {
-        "doctype": "Notification",
-        "filters": [
-            [
-                "name",
-                "in",
-                [
-                    "Leave Application - Notify HOD",
-                    "Leave Application - Notify Employee on Approval",
-                    "Leave Application - Notify Employee on Rejection"
-                ]
-            ]
-        ]
-    }
 ]
 # user_data_fields = [
 # 	{
