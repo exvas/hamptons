@@ -24,6 +24,11 @@ def on_update_attendance_request(doc, method=None):
 	if not workflow_state:
 		return
 
+	# Log workflow action
+	previous_state = doc.get_doc_before_save()
+	from_state = previous_state.workflow_state if previous_state else ""
+	_log_workflow_action(doc, from_state, workflow_state)
+
 	employee = frappe.get_doc("Employee", doc.employee)
 	employee_name = employee.employee_name
 	employee_email = employee.prefered_email or employee.company_email or employee.personal_email
@@ -211,3 +216,19 @@ def _get_notification_content(notification_type, context):
 		_("Attendance Request Update - {0}").format(emp_name),
 		f"<h3>Attendance Request Update</h3><p>Attendance request for <strong>{emp_name}</strong> has been updated. Current Status: {context['workflow_state']}</p><p><a href='{request_url}'>View Attendance Request</a></p>"
 	)
+
+
+def _log_workflow_action(doc, from_state, to_state):
+	"""Log workflow action to Workflow Action Log."""
+	action = "Approve" if "Approved" in to_state else "Reject" if "Rejected" in to_state else "Submit"
+	try:
+		from hamptons.hamptons.doctype.workflow_action_log.workflow_action_log import log_workflow_action
+		log_workflow_action(
+			reference_doctype="Attendance Request",
+			reference_name=doc.name,
+			action=action,
+			from_state=from_state or "",
+			to_state=to_state
+		)
+	except Exception as e:
+		frappe.logger().error(f"Failed to log workflow action for {doc.name}: {str(e)}")
