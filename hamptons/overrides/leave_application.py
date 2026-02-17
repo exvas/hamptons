@@ -4,7 +4,7 @@
 """
 Leave Application Override
 - Marks Hajj Leave as consumed when Leave Application is approved
-- Custom workflow notifications for Leave Application
+- Custom workflow notifications for Leave Application (HOD-only approval)
 """
 
 import frappe
@@ -12,78 +12,11 @@ from frappe import _
 from frappe.utils import getdate, add_days, today, get_url_to_form
 
 
-@frappe.whitelist()
-def is_hod_or_hr_manager(employee):
-	"""
-	Check if an employee is a HOD or HR Manager
-
-	Args:
-		employee: Employee ID
-
-	Returns:
-		Boolean - True if employee has HOD role OR HR Manager designation
-	"""
-	if not employee:
-		return False
-
-	# Check if HR Manager by designation
-	designation = frappe.db.get_value("Employee", employee, "designation")
-	if designation == "HR Manager":
-		return True
-
-	# Check if has HOD role
-	user_id = frappe.db.get_value("Employee", employee, "user_id")
-	if user_id:
-		has_hod_role = frappe.db.exists("Has Role", {"parent": user_id, "role": "HOD"})
-		if has_hod_role:
-			return True
-
-	return False
-
-
-@frappe.whitelist()
-def hod_is_hr_approver(employee):
-	"""
-	Check if the employee's HOD is also an HR Approver
-	This prevents double approval when HR Manager is also the department head
-
-	Args:
-		employee: Employee ID
-
-	Returns:
-		Boolean - True if employee's HOD has HR Approver role
-	"""
-	if not employee:
-		return False
-
-	# Get the employee's reports_to (HOD)
-	reports_to = frappe.db.get_value("Employee", employee, "reports_to")
-	if not reports_to:
-		return False
-
-	# Get the HOD's user_id
-	hod_user_id = frappe.db.get_value("Employee", reports_to, "user_id")
-	if not hod_user_id:
-		return False
-
-	# Check if HOD has HR Approver role
-	has_hr_role = frappe.db.exists("Has Role", {
-		"parent": hod_user_id,
-		"role": "Hr Approver"
-	})
-
-	return bool(has_hr_role)
-
-
 def validate_leave_application(doc, method=None):
 	"""
 	Validate Leave Application:
 	- Sick Leave requires attachment (medical certificate)
 	- Annual Leave: show warning for short notice
-
-	Args:
-		doc: Leave Application document
-		method: Method name (not used)
 	"""
 	# Sick Leave: require attachment before submission
 	if doc.leave_type == "Sick Leave" and doc.docstatus == 1:
@@ -117,43 +50,21 @@ def validate_leave_application(doc, method=None):
 
 
 def on_submit_leave_application(doc, method=None):
-	"""
-	Mark Hajj Leave as consumed when Leave Application is submitted
-
-	Args:
-		doc: Leave Application document
-		method: Method name (not used)
-	"""
+	"""Mark Hajj Leave as consumed when Leave Application is submitted."""
 	if doc.leave_type == "Hajj Leave" and doc.status in ['Approved', 'Open']:
-		# Mark employee as having consumed Hajj leave
 		employee = frappe.get_doc("Employee", doc.employee)
 		employee.custom_hajj_leave_taken = 1
 		employee.custom_hajj_leave_date = doc.from_date
 		employee.save(ignore_permissions=True)
 		frappe.db.commit()
 
-		frappe.logger().info(
-			f"Marked Hajj Leave as consumed for employee {doc.employee} "
-			f"(Leave Application: {doc.name}, From: {doc.from_date})"
-		)
-
 
 def on_cancel_leave_application(doc, method=None):
-	"""
-	Unmark Hajj Leave if Leave Application is cancelled (before actual leave date)
-
-	Args:
-		doc: Leave Application document
-		method: Method name (not used)
-	"""
+	"""Unmark Hajj Leave if Leave Application is cancelled (before actual leave date)."""
 	if doc.leave_type == "Hajj Leave":
-		from frappe.utils import today, getdate
-
-		# Only unmark if the leave hasn't started yet
 		if getdate(doc.from_date) > getdate(today()):
 			employee = frappe.get_doc("Employee", doc.employee)
 
-			# Check if there are any other approved Hajj Leave applications
 			other_hajj_leaves = frappe.db.count("Leave Application", {
 				"employee": doc.employee,
 				"leave_type": "Hajj Leave",
@@ -163,27 +74,17 @@ def on_cancel_leave_application(doc, method=None):
 			})
 
 			if other_hajj_leaves == 0:
-				# No other approved Hajj Leave applications - unmark
 				employee.custom_hajj_leave_taken = 0
 				employee.custom_hajj_leave_date = None
 				employee.save(ignore_permissions=True)
 				frappe.db.commit()
 
-				frappe.logger().info(
-					f"Unmarked Hajj Leave for employee {doc.employee} "
-					f"(Leave Application cancelled before leave date)"
-				)
-
 
 def on_update_leave_application(doc, method=None):
 	"""
-	Send custom workflow notifications when Leave Application workflow state changes
-
-	Args:
-		doc: Leave Application document
-		method: Method name (not used)
+	Send custom workflow notifications when Leave Application workflow state changes.
+	Simple HOD-only approval flow (same pattern as Attendance Request).
 	"""
-	# Check if workflow_state has changed
 	if not doc.has_value_changed("workflow_state"):
 		return
 
@@ -191,15 +92,12 @@ def on_update_leave_application(doc, method=None):
 	if not workflow_state:
 		return
 
-	# Get employee details
 	employee = frappe.get_doc("Employee", doc.employee)
 	employee_name = employee.employee_name
 	employee_email = employee.prefered_email or employee.company_email or employee.personal_email
 
-	# Get leave application URL
 	leave_url = get_url_to_form("Leave Application", doc.name)
 
-	# Build common context for email
 	context = {
 		"employee_name": employee_name,
 		"employee_id": doc.employee,
@@ -212,63 +110,30 @@ def on_update_leave_application(doc, method=None):
 		"workflow_state": workflow_state
 	}
 
-	# Send notification based on workflow state
 	if workflow_state == "Pending":
 		# Notify HOD about new leave application
-		send_notification_to_role(doc, "HOD", context, "pending_approval")
+		_send_notification_to_hod(doc, context, "pending_approval")
 
 	elif workflow_state == "Approved HOD":
-		# Notify Leave Approver (HR) about leave pending their approval
-		send_notification_to_role(doc, "Leave Approver", context, "pending_hr_approval")
-		# Also notify employee that HOD has approved
-		send_notification_to_employee(employee_email, employee_name, context, "hod_approved")
+		# Notify employee that HOD has approved (final approval)
+		_send_notification_to_employee(employee_email, context, "approved")
 
 	elif workflow_state == "Rejected HOD":
 		# Notify employee that HOD has rejected
-		send_notification_to_employee(employee_email, employee_name, context, "hod_rejected")
-
-	elif workflow_state == "Approved HR":
-		# Notify employee that leave is fully approved
-		send_notification_to_employee(employee_email, employee_name, context, "fully_approved")
-
-	elif workflow_state == "Rejected HR":
-		# Notify employee that HR has rejected
-		send_notification_to_employee(employee_email, employee_name, context, "hr_rejected")
-
-	elif workflow_state == "Approved GM":
-		# Notify employee that GM has approved their leave
-		send_notification_to_employee(employee_email, employee_name, context, "gm_approved")
-		# Also notify HR Manager for information
-		send_notification_to_role(doc, "Hr Approver", context, "gm_approved_info")
-
-	elif workflow_state == "Rejected GM":
-		# Notify employee that GM has rejected
-		send_notification_to_employee(employee_email, employee_name, context, "gm_rejected")
+		_send_notification_to_employee(employee_email, context, "rejected")
 
 
-def send_notification_to_role(doc, role, context, notification_type):
-	"""
-	Send notification to users with a specific role in the employee's department
-
-	Args:
-		doc: Leave Application document
-		role: Role name to notify (e.g., "HOD", "Leave Approver")
-		context: Email context dictionary
-		notification_type: Type of notification for subject/message
-	"""
-	# Check if outgoing email is enabled
+def _send_notification_to_hod(doc, context, notification_type):
+	"""Send notification to HOD (reports_to or department HOD)."""
 	from hamptons.utils.email_utils import is_outgoing_email_enabled
 	if not is_outgoing_email_enabled():
-		frappe.logger().info(f"Skipping leave notification: No enabled outgoing email account")
 		return
 
-	recipients = get_role_recipients(doc, role)
-
+	recipients = _get_hod_recipients(doc)
 	if not recipients:
-		frappe.logger().warning(f"No recipients found for role {role} for leave application {doc.name}")
 		return
 
-	subject, message = get_notification_content(notification_type, context)
+	subject, message = _get_notification_content(notification_type, context)
 
 	for recipient in recipients:
 		try:
@@ -281,30 +146,19 @@ def send_notification_to_role(doc, role, context, notification_type):
 				now=True
 			)
 		except Exception as e:
-			frappe.logger().error(f"Failed to send email to {recipient}: {str(e)}")
+			frappe.logger().error(f"Leave notification failed for {recipient}: {str(e)}")
 
 
-def send_notification_to_employee(email, employee_name, context, notification_type):
-	"""
-	Send notification to the employee
-
-	Args:
-		email: Employee email address
-		employee_name: Employee name
-		context: Email context dictionary
-		notification_type: Type of notification for subject/message
-	"""
-	# Check if outgoing email is enabled
+def _send_notification_to_employee(email, context, notification_type):
+	"""Send notification to the employee."""
 	from hamptons.utils.email_utils import is_outgoing_email_enabled
 	if not is_outgoing_email_enabled():
-		frappe.logger().info(f"Skipping employee notification: No enabled outgoing email account")
 		return
 
 	if not email:
-		frappe.logger().warning(f"No email found for employee {employee_name}")
 		return
 
-	subject, message = get_notification_content(notification_type, context)
+	subject, message = _get_notification_content(notification_type, context)
 
 	try:
 		frappe.sendmail(
@@ -316,233 +170,73 @@ def send_notification_to_employee(email, employee_name, context, notification_ty
 			now=True
 		)
 	except Exception as e:
-		frappe.logger().error(f"Failed to send email to {email}: {str(e)}")
+		frappe.logger().error(f"Leave notification failed for {email}: {str(e)}")
 
 
-def get_role_recipients(doc, role):
-	"""
-	Get email addresses of users with the specified role
-
-	Args:
-		doc: Leave Application document
-		role: Role name
-
-	Returns:
-		List of email addresses
-	"""
+def _get_hod_recipients(doc):
+	"""Get HOD email addresses - same logic as Attendance Request."""
 	recipients = []
+	employee = frappe.get_doc("Employee", doc.employee)
 
-	# For HOD role, get the department head
-	if role == "HOD":
-		# Try to get department head from employee's reports_to
-		employee = frappe.get_doc("Employee", doc.employee)
-		if employee.reports_to:
-			hod_employee = frappe.get_doc("Employee", employee.reports_to)
-			hod_email = hod_employee.prefered_email or hod_employee.company_email or hod_employee.personal_email
-			if hod_email:
-				recipients.append(hod_email)
+	if employee.reports_to:
+		hod = frappe.get_doc("Employee", employee.reports_to)
+		hod_email = hod.prefered_email or hod.company_email or hod.personal_email
+		if hod_email:
+			recipients.append(hod_email)
 
-		# If no reports_to, get users with HOD role in the same department
-		if not recipients and employee.department:
-			department_hods = frappe.db.sql("""
-				SELECT DISTINCT u.email
-				FROM `tabUser` u
-				INNER JOIN `tabHas Role` hr ON hr.parent = u.name
-				INNER JOIN `tabEmployee` e ON e.user_id = u.name
-				WHERE hr.role = 'HOD'
-				AND e.department = %s
-				AND u.enabled = 1
-				AND u.email IS NOT NULL
-			""", (employee.department,), as_dict=True)
-			recipients.extend([d.email for d in department_hods if d.email])
+	if not recipients and employee.department:
+		dept_hods = frappe.db.sql("""
+			SELECT DISTINCT u.email
+			FROM `tabUser` u
+			INNER JOIN `tabHas Role` hr ON hr.parent = u.name
+			INNER JOIN `tabEmployee` e ON e.user_id = u.name
+			WHERE hr.role = 'HOD'
+			AND e.department = %s
+			AND u.enabled = 1
+			AND u.email IS NOT NULL
+		""", (employee.department,), as_dict=True)
+		recipients.extend([d.email for d in dept_hods if d.email])
 
-	# For Leave Approver role
-	elif role == "Leave Approver":
-		# First try to get the leave_approver field from leave application
-		if doc.leave_approver:
-			recipients.append(doc.leave_approver)
-		else:
-			# Get users with Leave Approver role
-			leave_approvers = frappe.db.sql("""
-				SELECT DISTINCT u.email
-				FROM `tabUser` u
-				INNER JOIN `tabHas Role` hr ON hr.parent = u.name
-				WHERE hr.role = 'Leave Approver'
-				AND u.enabled = 1
-				AND u.email IS NOT NULL
-			""", as_dict=True)
-			recipients.extend([d.email for d in leave_approvers if d.email])
-
-	return list(set(recipients))  # Remove duplicates
+	return list(set(recipients))
 
 
-def get_notification_content(notification_type, context):
-	"""
-	Get email subject and message based on notification type
-
-	Args:
-		notification_type: Type of notification
-		context: Email context dictionary
-
-	Returns:
-		Tuple of (subject, message)
-	"""
+def _get_notification_content(notification_type, context):
+	"""Get email subject and message based on notification type."""
 	leave_url = context.get("leave_url", "#")
+	emp_name = context["employee_name"]
+	emp_id = context["employee_id"]
 
-	if notification_type == "pending_approval":
-		subject = _("Leave Application Pending Your Approval - {0}").format(context["employee_name"])
-		message = _("""
-			<h3>Leave Application Pending Approval</h3>
-			<p>Dear HOD,</p>
-			<p><strong>{employee_name}</strong> ({employee_id}) has submitted a leave application that requires your approval.</p>
-			<table style="border-collapse: collapse; width: 100%; max-width: 500px;">
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Leave Type:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{leave_type}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>From Date:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{from_date}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>To Date:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{to_date}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Total Days:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{total_days}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Reason:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{reason}</td></tr>
-			</table>
-			<p style="margin-top: 20px;"><a href="{leave_url}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Leave Application</a></p>
-		""").format(**context)
+	table = f"""
+		<table style="border-collapse: collapse; width: 100%; max-width: 500px;">
+			<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Leave Type:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{context['leave_type']}</td></tr>
+			<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>From Date:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{context['from_date']}</td></tr>
+			<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>To Date:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{context['to_date']}</td></tr>
+			<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Total Days:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{context['total_days']}</td></tr>
+			<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Reason:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{context['reason']}</td></tr>
+		</table>"""
 
-	elif notification_type == "pending_hr_approval":
-		subject = _("Leave Application Pending HR Approval - {0}").format(context["employee_name"])
-		message = _("""
-			<h3>Leave Application Pending HR Approval</h3>
-			<p>Dear HR Team,</p>
-			<p>A leave application from <strong>{employee_name}</strong> ({employee_id}) has been approved by HOD and is now pending your approval.</p>
-			<table style="border-collapse: collapse; width: 100%; max-width: 500px;">
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Leave Type:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{leave_type}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>From Date:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{from_date}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>To Date:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{to_date}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Total Days:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{total_days}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Reason:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{reason}</td></tr>
-			</table>
-			<p style="margin-top: 20px;"><a href="{leave_url}" style="background-color: #2196F3; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Leave Application</a></p>
-		""").format(**context)
+	btn_green = f'<p style="margin-top: 20px;"><a href="{leave_url}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Leave Application</a></p>'
+	btn_red = f'<p style="margin-top: 20px;"><a href="{leave_url}" style="background-color: #f44336; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Leave Application</a></p>'
 
-	elif notification_type == "hod_approved":
-		subject = _("Your Leave Application - HOD Approved")
-		message = _("""
-			<h3>Leave Application Update</h3>
-			<p>Dear {employee_name},</p>
-			<p>Your leave application has been <strong style="color: green;">approved by your HOD</strong> and is now pending HR approval.</p>
-			<table style="border-collapse: collapse; width: 100%; max-width: 500px;">
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Leave Type:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{leave_type}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>From Date:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{from_date}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>To Date:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{to_date}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Total Days:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{total_days}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Status:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">Pending HR Approval</td></tr>
-			</table>
-			<p style="margin-top: 20px;"><a href="{leave_url}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Leave Application</a></p>
-		""").format(**context)
+	templates = {
+		"pending_approval": (
+			_("Leave Application Pending Your Approval - {0}").format(emp_name),
+			f"<h3>Leave Application Pending Approval</h3><p>Dear HOD,</p><p><strong>{emp_name}</strong> ({emp_id}) has submitted a leave application that requires your approval.</p>{table}{btn_green}"
+		),
+		"approved": (
+			_("Your Leave Application - Approved"),
+			f"<h3>Leave Application Approved</h3><p>Dear {emp_name},</p><p>Your leave application has been <strong style='color: green;'>approved</strong>.</p>{table}{btn_green}"
+		),
+		"rejected": (
+			_("Your Leave Application - Rejected"),
+			f"<h3>Leave Application Rejected</h3><p>Dear {emp_name},</p><p>Your leave application has been <strong style='color: red;'>rejected</strong>.</p>{table}<p>Please contact your HOD for more information.</p>{btn_red}"
+		),
+	}
 
-	elif notification_type == "hod_rejected":
-		subject = _("Your Leave Application - Rejected by HOD")
-		message = _("""
-			<h3>Leave Application Rejected</h3>
-			<p>Dear {employee_name},</p>
-			<p>We regret to inform you that your leave application has been <strong style="color: red;">rejected by your HOD</strong>.</p>
-			<table style="border-collapse: collapse; width: 100%; max-width: 500px;">
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Leave Type:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{leave_type}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>From Date:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{from_date}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>To Date:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{to_date}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Total Days:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{total_days}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Status:</strong></td><td style="padding: 8px; border: 1px solid #ddd; color: red;">Rejected by HOD</td></tr>
-			</table>
-			<p>Please contact your HOD for more information.</p>
-			<p style="margin-top: 20px;"><a href="{leave_url}" style="background-color: #f44336; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Leave Application</a></p>
-		""").format(**context)
+	if notification_type in templates:
+		return templates[notification_type]
 
-	elif notification_type == "fully_approved":
-		subject = _("Your Leave Application - Approved")
-		message = _("""
-			<h3>Leave Application Approved</h3>
-			<p>Dear {employee_name},</p>
-			<p>Congratulations! Your leave application has been <strong style="color: green;">fully approved</strong>.</p>
-			<table style="border-collapse: collapse; width: 100%; max-width: 500px;">
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Leave Type:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{leave_type}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>From Date:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{from_date}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>To Date:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{to_date}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Total Days:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{total_days}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Status:</strong></td><td style="padding: 8px; border: 1px solid #ddd; color: green;">Approved</td></tr>
-			</table>
-			<p style="margin-top: 20px;"><a href="{leave_url}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Leave Application</a></p>
-		""").format(**context)
-
-	elif notification_type == "hr_rejected":
-		subject = _("Your Leave Application - Rejected by HR")
-		message = _("""
-			<h3>Leave Application Rejected</h3>
-			<p>Dear {employee_name},</p>
-			<p>We regret to inform you that your leave application has been <strong style="color: red;">rejected by HR</strong>.</p>
-			<table style="border-collapse: collapse; width: 100%; max-width: 500px;">
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Leave Type:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{leave_type}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>From Date:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{from_date}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>To Date:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{to_date}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Total Days:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{total_days}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Status:</strong></td><td style="padding: 8px; border: 1px solid #ddd; color: red;">Rejected by HR</td></tr>
-			</table>
-			<p>Please contact HR for more information.</p>
-			<p style="margin-top: 20px;"><a href="{leave_url}" style="background-color: #f44336; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Leave Application</a></p>
-		""").format(**context)
-
-	elif notification_type == "gm_approved":
-		subject = _("Your Leave Application - Approved by GM")
-		message = _("""
-			<h3>Leave Application Approved</h3>
-			<p>Dear {employee_name},</p>
-			<p>Congratulations! Your leave application has been <strong style="color: green;">approved by the General Manager</strong>.</p>
-			<table style="border-collapse: collapse; width: 100%; max-width: 500px;">
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Leave Type:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{leave_type}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>From Date:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{from_date}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>To Date:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{to_date}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Total Days:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{total_days}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Status:</strong></td><td style="padding: 8px; border: 1px solid #ddd; color: green;">Approved by GM</td></tr>
-			</table>
-			<p style="margin-top: 20px;"><a href="{leave_url}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Leave Application</a></p>
-		""").format(**context)
-
-	elif notification_type == "gm_approved_info":
-		subject = _("Leave Application Approved by GM - {0}").format(context["employee_name"])
-		message = _("""
-			<h3>Leave Application Approved by GM</h3>
-			<p>Dear HR Team,</p>
-			<p>A leave application from <strong>{employee_name}</strong> ({employee_id}) has been approved by the General Manager.</p>
-			<table style="border-collapse: collapse; width: 100%; max-width: 500px;">
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Leave Type:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{leave_type}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>From Date:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{from_date}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>To Date:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{to_date}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Total Days:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{total_days}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Status:</strong></td><td style="padding: 8px; border: 1px solid #ddd; color: green;">Approved by GM</td></tr>
-			</table>
-			<p style="margin-top: 20px;"><a href="{leave_url}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Leave Application</a></p>
-		""").format(**context)
-
-	elif notification_type == "gm_rejected":
-		subject = _("Your Leave Application - Rejected by GM")
-		message = _("""
-			<h3>Leave Application Rejected</h3>
-			<p>Dear {employee_name},</p>
-			<p>We regret to inform you that your leave application has been <strong style="color: red;">rejected by the General Manager</strong>.</p>
-			<table style="border-collapse: collapse; width: 100%; max-width: 500px;">
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Leave Type:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{leave_type}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>From Date:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{from_date}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>To Date:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{to_date}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Total Days:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{total_days}</td></tr>
-				<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Status:</strong></td><td style="padding: 8px; border: 1px solid #ddd; color: red;">Rejected by GM</td></tr>
-			</table>
-			<p>Please contact the General Manager for more information.</p>
-			<p style="margin-top: 20px;"><a href="{leave_url}" style="background-color: #f44336; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Leave Application</a></p>
-		""").format(**context)
-
-	else:
-		subject = _("Leave Application Update - {0}").format(context["employee_name"])
-		message = _("""
-			<h3>Leave Application Update</h3>
-			<p>Leave application for <strong>{employee_name}</strong> has been updated.</p>
-			<p>Current Status: {workflow_state}</p>
-			<p><a href="{leave_url}">View Leave Application</a></p>
-		""").format(**context)
-
-	return subject, message
+	return (
+		_("Leave Application Update - {0}").format(emp_name),
+		f"<h3>Leave Application Update</h3><p>Leave application for <strong>{emp_name}</strong> has been updated. Current Status: {context['workflow_state']}</p><p><a href='{leave_url}'>View Leave Application</a></p>"
+	)
