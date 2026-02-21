@@ -295,9 +295,9 @@ fixtures = [
                     "Leave Type-custom_nationality_specific",
                     "Leave Type-custom_religion_specific",
                     "Leave Type-custom_once_in_service",
-                    # Family Visa Custom Fields
-                    "Employee-custom_family_member_id_card",
-                    "Employee-custom_family_visa_date"
+                    # Family Info Custom Fields
+                    "Employee-custom_family_info_section",
+                    "Employee-custom_family_info"
                 ]
             ]
         ]

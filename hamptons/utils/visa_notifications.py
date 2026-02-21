@@ -5,6 +5,7 @@
 Family Visa Date expiry notification.
 Sends email alerts X days before the visa date expires,
 based on Hamptons Settings configuration.
+Uses Employee Family Info child table for per-family-member tracking.
 """
 
 import frappe
@@ -14,7 +15,7 @@ from frappe.utils import today, add_days, getdate, formatdate
 
 def send_visa_expiry_alerts():
 	"""
-	Scheduled job: check employees whose Family Visa Date is expiring
+	Scheduled job: check family members whose Visa Date is expiring
 	within the configured 'Before Notify' days and send email alerts.
 
 	Uses Hamptons Settings:
@@ -43,28 +44,28 @@ def send_visa_expiry_alerts():
 	# Calculate the target date: today + before_notify days
 	target_date = add_days(today(), before_days)
 
-	# Find active employees whose family visa date is expiring on or before the target date
-	# and hasn't expired more than 30 days ago (avoid alerting for very old records)
-	employees = frappe.db.sql("""
-		SELECT name, employee_name, department, designation,
-			   custom_family_member_id_card, custom_family_visa_date
-		FROM tabEmployee
-		WHERE status = 'Active'
-		AND custom_family_visa_date IS NOT NULL
-		AND custom_family_visa_date <= %s
-		AND custom_family_visa_date >= %s
-		ORDER BY custom_family_visa_date ASC
+	# Find family members with expiring visas from the child table
+	expiring = frappe.db.sql("""
+		SELECT fi.family_member_name, fi.relationship, fi.id_card, fi.visa_date, fi.remarks,
+			   e.name as employee_id, e.employee_name, e.department
+		FROM `tabEmployee Family Info` fi
+		INNER JOIN `tabEmployee` e ON fi.parent = e.name AND fi.parenttype = 'Employee'
+		WHERE e.status = 'Active'
+		AND fi.visa_date IS NOT NULL
+		AND fi.visa_date <= %s
+		AND fi.visa_date >= %s
+		ORDER BY fi.visa_date ASC
 	""", (target_date, today()), as_dict=True)
 
-	if not employees:
+	if not expiring:
 		return
 
 	# Build email content
-	subject = _("Family Visa Expiry Alert - {0} Employee(s)").format(len(employees))
+	subject = _("Family Visa Expiry Alert - {0} Record(s)").format(len(expiring))
 
 	rows = ""
-	for emp in employees:
-		days_remaining = (getdate(emp.custom_family_visa_date) - getdate(today())).days
+	for rec in expiring:
+		days_remaining = (getdate(rec.visa_date) - getdate(today())).days
 		if days_remaining < 0:
 			status = f'<span style="color: red; font-weight: bold;">Expired {abs(days_remaining)} days ago</span>'
 		elif days_remaining == 0:
@@ -74,25 +75,29 @@ def send_visa_expiry_alerts():
 
 		rows += f"""
 		<tr>
-			<td style="padding: 8px; border: 1px solid #ddd;">{emp.name}</td>
-			<td style="padding: 8px; border: 1px solid #ddd;">{emp.employee_name}</td>
-			<td style="padding: 8px; border: 1px solid #ddd;">{emp.department or '-'}</td>
-			<td style="padding: 8px; border: 1px solid #ddd;">{emp.custom_family_member_id_card or '-'}</td>
-			<td style="padding: 8px; border: 1px solid #ddd;">{formatdate(emp.custom_family_visa_date)}</td>
+			<td style="padding: 8px; border: 1px solid #ddd;">{rec.employee_id}</td>
+			<td style="padding: 8px; border: 1px solid #ddd;">{rec.employee_name}</td>
+			<td style="padding: 8px; border: 1px solid #ddd;">{rec.department or '-'}</td>
+			<td style="padding: 8px; border: 1px solid #ddd;">{rec.family_member_name or '-'}</td>
+			<td style="padding: 8px; border: 1px solid #ddd;">{rec.relationship or '-'}</td>
+			<td style="padding: 8px; border: 1px solid #ddd;">{rec.id_card or '-'}</td>
+			<td style="padding: 8px; border: 1px solid #ddd;">{formatdate(rec.visa_date)}</td>
 			<td style="padding: 8px; border: 1px solid #ddd;">{status}</td>
 		</tr>
 		"""
 
 	message = f"""
 	<h3>Family Visa Expiry Alert</h3>
-	<p>The following {len(employees)} employee(s) have family visas expiring within {before_days} days:</p>
+	<p>The following {len(expiring)} family member(s) have visas expiring within {before_days} days:</p>
 	<table style="border-collapse: collapse; width: 100%;">
 		<thead>
 			<tr style="background-color: #f2f2f2;">
 				<th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Employee ID</th>
 				<th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Employee Name</th>
 				<th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Department</th>
-				<th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Family Member ID</th>
+				<th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Family Member</th>
+				<th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Relationship</th>
+				<th style="padding: 8px; border: 1px solid #ddd; text-align: left;">ID Card</th>
 				<th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Visa Expiry Date</th>
 				<th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Status</th>
 			</tr>
@@ -113,5 +118,5 @@ def send_visa_expiry_alerts():
 	)
 
 	frappe.logger().info(
-		f"Sent visa expiry alert for {len(employees)} employees to {len(recipients)} recipients"
+		f"Sent visa expiry alert for {len(expiring)} family members to {len(recipients)} recipients"
 	)
