@@ -836,7 +836,11 @@ def get_data(filters):
                 row['leave_type'] = row['attendance_leave_type'].strip()
             else:
                 row['leave_type'] = ''
-            row['status'] = format_attendance_status(row['original_status'] or 'Absent')
+            # Distinguish Absent with in_time (mis-punch / missing checkout) from true Absent
+            if row['original_status'] == 'Absent' and row.get('in_time'):
+                row['status'] = format_attendance_status('Mis-Punch')
+            else:
+                row['status'] = format_attendance_status(row['original_status'] or 'Absent')
     
     # Apply att_code filter if provided
     if filters.get('att_code'):
@@ -955,17 +959,21 @@ def get_summary(data):
     """Generate summary statistics for the report"""
     if not data:
         return []
-    
+
     total_records = len(data)
     # Count Week Off and Week Off (Holiday) together - check for HTML content
     week_off_count = len([d for d in data if 'Week Off' in str(d.get("status", ""))])
     # Count Present records - check for both PR and Present in HTML content
     present_count = len([d for d in data if 'Present' in str(d.get("status", ""))])
-    # Count Absent records - check for Absent in HTML content
+    # Count Absent records - exclude Week Off and Mis-Punch
     absent_count = len([d for d in data if 'Absent' in str(d.get("status", "")) and 'Week Off' not in str(d.get("status", ""))])
     # Count Holiday and Holiday with punch status, but exclude Week Off (Holiday) as it's counted in week_off_count
     holiday_count = len([d for d in data if 'Holiday' in str(d.get("status", "")) and 'Week Off' not in str(d.get("status", ""))])
-    
+    # Count Mis-Punch (Absent with in_time - missing checkout)
+    mis_punch_count = len([d for d in data if 'Mis-Punch' in str(d.get("status", ""))])
+    # Count Pending (checkins exist but no Attendance record yet)
+    pending_count = len([d for d in data if 'Pending' in str(d.get("status", ""))])
+
     return [
         {
             "label": "Total Records",
@@ -986,6 +994,16 @@ def get_summary(data):
             "label": "Holiday",
             "value": holiday_count,
             "indicator": "Purple"
+        },
+        {
+            "label": "Mis-Punch",
+            "value": mis_punch_count,
+            "indicator": "Orange"
+        },
+        {
+            "label": "Pending",
+            "value": pending_count,
+            "indicator": "Yellow"
         },
         {
             "label": "Absent",

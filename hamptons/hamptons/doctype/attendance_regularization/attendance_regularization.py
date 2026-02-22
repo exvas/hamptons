@@ -4,7 +4,89 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import getdate
+from frappe.utils import getdate, time_diff_in_hours
+
+
+def compute_attendance_fields_from_ar(doc):
+	"""
+	Compute in_time, out_time, working_hours, late_entry, early_exit
+	from an Attendance Regularization's checkin items and shift data.
+
+	Args:
+		doc: Attendance Regularization document (or frappe doc)
+
+	Returns:
+		dict with keys: in_time, out_time, working_hours, late_entry, early_exit
+	"""
+	items = sorted(
+		doc.attendance_regularization_item or [],
+		key=lambda x: x.time
+	)
+
+	if not items:
+		return {}
+
+	result = {}
+
+	# First item = IN, last item = OUT (simple strategy matching consolidation)
+	first_item = items[0]
+	last_item = items[-1] if len(items) > 1 else None
+
+	result['in_time'] = first_item.time
+
+	if last_item:
+		result['out_time'] = last_item.time
+		wh = time_diff_in_hours(last_item.time, first_item.time)
+		result['working_hours'] = round(wh, 2)
+
+	# Calculate late_entry and early_exit using shift data
+	if doc.shift:
+		try:
+			from hamptons.overrides.attendance_utils import calculate_late_early_times
+			shift_type = frappe.get_doc("Shift Type", doc.shift)
+			late_early = calculate_late_early_times(
+				first_item.time,
+				last_item.time if last_item else None,
+				shift_type,
+				getdate(doc.posting_date)
+			)
+			result['late_entry'] = 1 if late_early.get('late_time') else 0
+			result['early_exit'] = 1 if late_early.get('early_exit_time') else 0
+		except Exception:
+			pass
+
+	return result
+
+
+def _build_attendance_update(ar_name, time_fields, existing_attendance, set_present=False):
+	"""Build and execute UPDATE query for Attendance with computed time fields."""
+	update_parts = ["custom_attendance_regularization = %s"]
+	update_params = [ar_name]
+
+	if set_present:
+		update_parts.append("status = 'Present'")
+
+	if time_fields.get('in_time'):
+		update_parts.append("in_time = %s")
+		update_params.append(time_fields['in_time'])
+	if time_fields.get('out_time'):
+		update_parts.append("out_time = %s")
+		update_params.append(time_fields['out_time'])
+	if time_fields.get('working_hours') is not None:
+		update_parts.append("working_hours = %s")
+		update_params.append(time_fields['working_hours'])
+	if time_fields.get('late_entry') is not None:
+		update_parts.append("late_entry = %s")
+		update_params.append(time_fields['late_entry'])
+	if time_fields.get('early_exit') is not None:
+		update_parts.append("early_exit = %s")
+		update_params.append(time_fields['early_exit'])
+
+	update_params.append(existing_attendance)
+	frappe.db.sql(
+		f"UPDATE `tabAttendance` SET {', '.join(update_parts)} WHERE name = %s",
+		tuple(update_params)
+	)
 
 
 class AttendanceRegularization(Document):
@@ -73,12 +155,31 @@ class AttendanceRegularization(Document):
 			)
 
 			if existing_attendance:
-				# Update existing Absent attendance to Present
 				att_doc = frappe.get_doc("Attendance", existing_attendance)
+				time_fields = compute_attendance_fields_from_ar(self)
+
 				if att_doc.status == "Absent":
+					# Absent -> Present with full time field update
+					_build_attendance_update(self.name, time_fields, existing_attendance, set_present=True)
+				elif att_doc.status == "Present":
+					# Already Present (late/early regularization) - link AR, fill missing fields
+					fill_fields = {}
+					if not att_doc.in_time and time_fields.get('in_time'):
+						fill_fields['in_time'] = time_fields['in_time']
+					if not att_doc.out_time and time_fields.get('out_time'):
+						fill_fields['out_time'] = time_fields['out_time']
+					if (not att_doc.working_hours or float(att_doc.working_hours) == 0) and time_fields.get('working_hours'):
+						fill_fields['working_hours'] = time_fields['working_hours']
+					if time_fields.get('late_entry') is not None:
+						fill_fields['late_entry'] = time_fields['late_entry']
+					if time_fields.get('early_exit') is not None:
+						fill_fields['early_exit'] = time_fields['early_exit']
+					_build_attendance_update(self.name, fill_fields, existing_attendance)
+				else:
+					# Other status (Half Day, On Leave) - just link
 					frappe.db.sql("""
 						UPDATE `tabAttendance`
-						SET status = 'Present', custom_attendance_regularization = %s
+						SET custom_attendance_regularization = %s
 						WHERE name = %s
 					""", (self.name, existing_attendance))
 
@@ -88,14 +189,15 @@ class AttendanceRegularization(Document):
 				frappe.db.commit()
 
 				frappe.msgprint(
-					_("Attendance Regularization approved. Attendance {0} updated to Present").format(
+					_("Attendance Regularization approved. Attendance {0} updated").format(
 						frappe.utils.get_link_to_form("Attendance", existing_attendance)
 					),
 					indicator="green"
 				)
 			else:
-				# No existing attendance - create new Present attendance
-				attendance = frappe.get_doc({
+				# No existing attendance - create new Present attendance with time fields
+				time_fields = compute_attendance_fields_from_ar(self)
+				att_data = {
 					"doctype": "Attendance",
 					"employee": self.employee,
 					"employee_name": self.employee_name,
@@ -104,7 +206,19 @@ class AttendanceRegularization(Document):
 					"status": "Present",
 					"custom_attendance_regularization": self.name,
 					"company": frappe.defaults.get_user_default("Company")
-				})
+				}
+				if time_fields.get('in_time'):
+					att_data['in_time'] = time_fields['in_time']
+				if time_fields.get('out_time'):
+					att_data['out_time'] = time_fields['out_time']
+				if time_fields.get('working_hours') is not None:
+					att_data['working_hours'] = time_fields['working_hours']
+				if time_fields.get('late_entry') is not None:
+					att_data['late_entry'] = time_fields['late_entry']
+				if time_fields.get('early_exit') is not None:
+					att_data['early_exit'] = time_fields['early_exit']
+
+				attendance = frappe.get_doc(att_data)
 				attendance.insert(ignore_permissions=True)
 				attendance.submit()
 
@@ -298,7 +412,6 @@ def auto_approve_regularization(regularization_name):
 		if doc.docstatus == 0 and doc.status == "Approved":
 			attendance_date = getdate(doc.posting_date)
 
-			# Check if attendance already exists (e.g. Absent from single-checkin)
 			existing_attendance = frappe.db.exists(
 				"Attendance",
 				{
@@ -309,12 +422,28 @@ def auto_approve_regularization(regularization_name):
 			)
 
 			if existing_attendance:
-				# Update existing Absent attendance to Present
 				att_doc = frappe.get_doc("Attendance", existing_attendance)
+				time_fields = compute_attendance_fields_from_ar(doc)
+
 				if att_doc.status == "Absent":
+					_build_attendance_update(doc.name, time_fields, existing_attendance, set_present=True)
+				elif att_doc.status == "Present":
+					fill_fields = {}
+					if not att_doc.in_time and time_fields.get('in_time'):
+						fill_fields['in_time'] = time_fields['in_time']
+					if not att_doc.out_time and time_fields.get('out_time'):
+						fill_fields['out_time'] = time_fields['out_time']
+					if (not att_doc.working_hours or float(att_doc.working_hours) == 0) and time_fields.get('working_hours'):
+						fill_fields['working_hours'] = time_fields['working_hours']
+					if time_fields.get('late_entry') is not None:
+						fill_fields['late_entry'] = time_fields['late_entry']
+					if time_fields.get('early_exit') is not None:
+						fill_fields['early_exit'] = time_fields['early_exit']
+					_build_attendance_update(doc.name, fill_fields, existing_attendance)
+				else:
 					frappe.db.sql("""
 						UPDATE `tabAttendance`
-						SET status = 'Present', custom_attendance_regularization = %s
+						SET custom_attendance_regularization = %s
 						WHERE name = %s
 					""", (doc.name, existing_attendance))
 
@@ -322,8 +451,9 @@ def auto_approve_regularization(regularization_name):
 				doc.submit()
 				frappe.db.commit()
 			else:
-				# Create new Present attendance
-				attendance = frappe.get_doc({
+				# Create new Present attendance with time fields
+				time_fields = compute_attendance_fields_from_ar(doc)
+				att_data = {
 					"doctype": "Attendance",
 					"employee": doc.employee,
 					"employee_name": doc.employee_name,
@@ -332,7 +462,19 @@ def auto_approve_regularization(regularization_name):
 					"status": "Present",
 					"custom_attendance_regularization": doc.name,
 					"company": frappe.defaults.get_user_default("Company")
-				})
+				}
+				if time_fields.get('in_time'):
+					att_data['in_time'] = time_fields['in_time']
+				if time_fields.get('out_time'):
+					att_data['out_time'] = time_fields['out_time']
+				if time_fields.get('working_hours') is not None:
+					att_data['working_hours'] = time_fields['working_hours']
+				if time_fields.get('late_entry') is not None:
+					att_data['late_entry'] = time_fields['late_entry']
+				if time_fields.get('early_exit') is not None:
+					att_data['early_exit'] = time_fields['early_exit']
+
+				attendance = frappe.get_doc(att_data)
 				attendance.insert(ignore_permissions=True)
 				attendance.submit()
 
