@@ -431,8 +431,15 @@ def on_employee_checkin_submit(doc, method=None):
 
 def daily_attendance_regularization_job():
 	"""
-	Consolidate daily checkins per employee and create Attendance or Attendance Regularization
-	Runs daily at 11:45 PM via scheduler.
+	Consolidate daily checkins per employee and create Attendance or Attendance Regularization.
+	Runs daily at 8:00 PM via scheduler.
+
+	Automatic catch-up: Also finds and processes ANY past dates (up to 30 days back)
+	that have Employee Checkins but no Attendance record. This permanently prevents
+	"Pending" records from accumulating due to:
+	- Late biometric syncs (data arriving after 8 PM)
+	- Days where the job failed or didn't run
+	- CrossChex reconciliation adding historical checkins
 	"""
 	# Check if Attendance Regularization DocType exists on this site
 	if not frappe.db.exists("DocType", "Attendance Regularization"):
@@ -442,7 +449,42 @@ def daily_attendance_regularization_job():
 		return
 
 	from frappe.utils import getdate
-	consolidate_attendance_for_date(getdate())
+	from datetime import timedelta
+
+	today = getdate()
+	lookback_start = today - timedelta(days=30)
+
+	# CATCH-UP: Find all past dates with checkins but no attendance (up to 30 days back)
+	pending_dates = frappe.db.sql("""
+		SELECT DISTINCT DATE(ec.time) as pending_date
+		FROM `tabEmployee Checkin` ec
+		WHERE DATE(ec.time) BETWEEN %s AND %s
+		AND DATE(ec.time) < %s
+		AND NOT EXISTS (
+			SELECT 1 FROM `tabAttendance` a
+			WHERE a.employee = ec.employee
+			AND a.attendance_date = DATE(ec.time)
+			AND a.docstatus < 2
+		)
+		ORDER BY DATE(ec.time)
+	""", (lookback_start, today, today), as_dict=True)
+
+	if pending_dates:
+		frappe.logger().info(
+			f"Daily Attendance Catch-up: Found {len(pending_dates)} pending dates to process"
+		)
+		for row in pending_dates:
+			try:
+				consolidate_attendance_for_date(row.pending_date)
+				frappe.db.commit()
+			except Exception as e:
+				frappe.log_error(
+					message=str(e),
+					title=f"Daily Attendance - Catch-up Error ({row.pending_date})"
+				)
+
+	# Process today
+	consolidate_attendance_for_date(today)
 
 @frappe.whitelist()
 def run_attendance_regularization_sync(days: int = 365, include_yesterday: bool = True):
@@ -846,6 +888,22 @@ def consolidate_attendance_for_date(processing_date):
 					attendance.submit()
 					created_attendance += 1
 
+				# Safety net: single checkin detected as OUT only (no IN) - still mark Absent
+				elif last_out and not first_in:
+					attendance = frappe.get_doc({
+						"doctype": "Attendance",
+						"employee": emp,
+						"employee_name": frappe.db.get_value("Employee", emp, "employee_name"),
+						"attendance_date": processing_date,
+						"shift": shift_type_name,
+						"status": "Absent",
+						"in_time": last_out_time,
+						"company": frappe.defaults.get_user_default("Company")
+					})
+					attendance.insert(ignore_permissions=True)
+					attendance.submit()
+					created_attendance += 1
+
 			# If regularization is needed (late entry/early exit/missing checkout), handle it separately
 			if needs_regularization and (first_in or last_out):
 				# Check if a draft regularization already exists for employee/date
@@ -938,3 +996,92 @@ def consolidate_attendance_for_date(processing_date):
 		"absent": absents_marked,
 		"leave": leaves_marked
 	}
+
+
+@frappe.whitelist()
+def consolidate_pending_attendance(from_date=None, to_date=None):
+	"""
+	Find all dates with Employee Checkins but no Attendance record and run consolidation.
+	Called from the Consolidate Attendance report's "Consolidate Pending" button.
+
+	Args:
+		from_date: Start date (defaults to 90 days ago)
+		to_date: End date (defaults to today)
+
+	Returns:
+		dict with processing stats
+	"""
+	from frappe.utils import getdate
+	from datetime import timedelta
+
+	if not from_date:
+		from_date = getdate() - timedelta(days=90)
+	else:
+		from_date = getdate(from_date)
+
+	if not to_date:
+		to_date = getdate()
+	else:
+		to_date = getdate(to_date)
+
+	# Find all dates that have checkins but no attendance
+	pending_dates = frappe.db.sql("""
+		SELECT DISTINCT DATE(ec.time) as pending_date
+		FROM `tabEmployee Checkin` ec
+		WHERE DATE(ec.time) BETWEEN %s AND %s
+		AND NOT EXISTS (
+			SELECT 1 FROM `tabAttendance` a
+			WHERE a.employee = ec.employee
+			AND a.attendance_date = DATE(ec.time)
+			AND a.docstatus < 2
+		)
+		ORDER BY DATE(ec.time)
+	""", (from_date, to_date), as_dict=True)
+
+	if not pending_dates:
+		return {
+			"success": True,
+			"message": "No pending dates found - all checkins have attendance records.",
+			"dates_processed": 0
+		}
+
+	total_stats = {
+		"dates_processed": 0,
+		"total_present": 0,
+		"total_regularizations": 0,
+		"total_absent": 0,
+		"total_leave": 0,
+		"errors": 0
+	}
+
+	for row in pending_dates:
+		try:
+			stats = consolidate_attendance_for_date(row.pending_date)
+			total_stats["dates_processed"] += 1
+			total_stats["total_present"] += stats.get("present", 0)
+			total_stats["total_regularizations"] += stats.get("regularizations", 0)
+			total_stats["total_absent"] += stats.get("absent", 0)
+			total_stats["total_leave"] += stats.get("leave", 0)
+
+			# Commit every 5 dates to avoid long transactions
+			if total_stats["dates_processed"] % 5 == 0:
+				frappe.db.commit()
+		except Exception as e:
+			total_stats["errors"] += 1
+			frappe.log_error(
+				message=str(e),
+				title=f"Consolidate Pending Error - {row.pending_date}"
+			)
+
+	frappe.db.commit()
+
+	total_stats["success"] = True
+	total_stats["message"] = (
+		f"Processed {total_stats['dates_processed']} dates: "
+		f"{total_stats['total_present']} Present, "
+		f"{total_stats['total_absent']} Absent, "
+		f"{total_stats['total_regularizations']} Regularizations, "
+		f"{total_stats['total_leave']} Leave"
+	)
+
+	return total_stats
