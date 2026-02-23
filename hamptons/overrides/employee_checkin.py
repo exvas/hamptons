@@ -802,25 +802,40 @@ def consolidate_attendance_for_date(processing_date):
 			# but still check if regularization is needed
 			existing_att = frappe.db.exists("Attendance", {"employee": emp, "attendance_date": processing_date, "docstatus": ["<", 2]})
 			if existing_att:
-				# Update existing attendance with in_time/out_time/working_hours if missing
-				if first_in_time and last_out_time:
-					att_doc = frappe.get_doc("Attendance", existing_att)
-					updated = False
-					if not att_doc.in_time:
+				att_doc = frappe.get_doc("Attendance", existing_att)
+
+				# Don't override attendance created via Leave Application or Attendance Request
+				is_leave_or_request = bool(att_doc.leave_type or getattr(att_doc, 'attendance_request', None))
+
+				if not is_leave_or_request:
+					# Determine correct status from current checkin data
+					if first_in and last_out:
+						correct_status = "Half Day" if is_half_day_by_hours else "Present"
+					elif first_in or last_out:
+						correct_status = "Absent"  # Single checkin = Absent
+					else:
+						correct_status = att_doc.status  # No checkins, keep as-is
+
+					# Update in_time
+					if first_in_time and not att_doc.in_time:
 						att_doc.db_set("in_time", first_in_time, update_modified=False)
-						updated = True
-					if not att_doc.out_time:
-						att_doc.db_set("out_time", last_out_time, update_modified=False)
-						updated = True
-					if not att_doc.working_hours or float(att_doc.working_hours) == 0:
-						att_doc.db_set("working_hours", round(working_hours, 2), update_modified=False)
-						updated = True
+
+					# Update out_time and working_hours when both IN and OUT exist
+					if first_in_time and last_out_time:
+						if not att_doc.out_time:
+							att_doc.db_set("out_time", last_out_time, update_modified=False)
+						if not att_doc.working_hours or float(att_doc.working_hours) == 0:
+							att_doc.db_set("working_hours", round(working_hours, 2), update_modified=False)
+
+					# Correct status if it doesn't match checkin reality
+					if att_doc.status != correct_status:
+						att_doc.db_set("status", correct_status, update_modified=False)
+
+					# Update late/early flags
 					if late_time_val and not att_doc.late_entry:
 						att_doc.db_set("late_entry", 1, update_modified=False)
-						updated = True
 					if result.get('early_exit_time') and not att_doc.early_exit:
 						att_doc.db_set("early_exit", 1, update_modified=False)
-						updated = True
 				# Don't skip - fall through to regularization check below
 			else:
 				# AUTO HALF DAY: If employee worked less than half day threshold, mark as Half Day
@@ -1085,3 +1100,67 @@ def consolidate_pending_attendance(from_date=None, to_date=None):
 	)
 
 	return total_stats
+
+
+def scheduled_consolidate_pending():
+	"""
+	Scheduler job: runs every 3 hours to consolidate pending checkins into Attendance.
+	Looks back 7 days for any employee+date that has checkins but no Attendance record,
+	and also re-runs consolidation on dates where attendance status may be stale
+	(e.g., single-checkin marked Present that should be Absent).
+	"""
+	from datetime import timedelta
+
+	today = getdate()
+	lookback_start = today - timedelta(days=7)
+
+	# Find dates with checkins but no attendance
+	pending_dates = frappe.db.sql("""
+		SELECT DISTINCT DATE(ec.time) as pending_date
+		FROM `tabEmployee Checkin` ec
+		WHERE DATE(ec.time) BETWEEN %s AND %s
+		AND NOT EXISTS (
+			SELECT 1 FROM `tabAttendance` a
+			WHERE a.employee = ec.employee
+			AND a.attendance_date = DATE(ec.time)
+			AND a.docstatus < 2
+		)
+		ORDER BY DATE(ec.time)
+	""", (lookback_start, today), as_dict=True)
+
+	# Also find dates with single-checkin employees whose attendance may be wrong
+	# (e.g., marked Present but only 1 checkin = should be Absent)
+	stale_dates = frappe.db.sql("""
+		SELECT DISTINCT a.attendance_date as pending_date
+		FROM `tabAttendance` a
+		WHERE a.attendance_date BETWEEN %s AND %s
+		AND a.docstatus < 2
+		AND a.status = 'Present'
+		AND a.in_time IS NOT NULL
+		AND (a.out_time IS NULL OR a.out_time = '')
+		AND a.leave_type IS NULL
+		AND (a.attendance_request IS NULL OR a.attendance_request = '')
+	""", (lookback_start, today), as_dict=True)
+
+	all_dates = set()
+	for row in (pending_dates or []):
+		all_dates.add(row.pending_date)
+	for row in (stale_dates or []):
+		all_dates.add(row.pending_date)
+
+	if not all_dates:
+		return
+
+	frappe.logger().info(
+		f"Scheduled Consolidate Pending: Processing {len(all_dates)} dates ({lookback_start} to {today})"
+	)
+
+	for dt in sorted(all_dates):
+		try:
+			consolidate_attendance_for_date(dt)
+			frappe.db.commit()
+		except Exception as e:
+			frappe.log_error(
+				message=str(e),
+				title=f"Scheduled Consolidate Pending Error - {dt}"
+			)

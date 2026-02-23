@@ -792,7 +792,11 @@ def get_data(filters):
             row['base_hours'] = 0
         # Otherwise, determine the final status and leave_type normally
         elif row['original_status'] == 'Present':
-            row['status'] = format_attendance_status('PR')
+            # Present with only IN time (no OUT) is actually a Mis-Punch
+            if row.get('in_time') and not row.get('out_time'):
+                row['status'] = format_attendance_status('Mis-Punch')
+            else:
+                row['status'] = format_attendance_status('PR')
             row['leave_type'] = ''
         elif row['original_status'] == 'On Leave':
             # Try to find leave type from attendance first
