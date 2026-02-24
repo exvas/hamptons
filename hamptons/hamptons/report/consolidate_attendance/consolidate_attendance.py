@@ -307,10 +307,15 @@ def get_data(filters):
 
     # Create shift lookup: employee -> shift details (use latest assignment)
     shift_lookup = {}
+    # Also build a list of all shifts per employee for date-specific base hours calculation
+    employee_shifts = {}
     for sa in shift_assignments:
         emp = sa['employee']
         if emp not in shift_lookup or sa['start_date'] > shift_lookup[emp]['start_date']:
             shift_lookup[emp] = sa
+        if emp not in employee_shifts:
+            employee_shifts[emp] = []
+        employee_shifts[emp].append(sa)
 
     # Get earliest check-in and latest check-out per employee per day from Employee Checkin
     # Include both draft (docstatus=0) and submitted (docstatus=1) checkins
@@ -764,14 +769,24 @@ def get_data(filters):
             else:
                 row['break_hours_note'] = "Warning: Working hours seem low - verify attendance data"
         
-        # Calculate and set base hours from shift policy, fallback to standard working hours
+        # Calculate and set base hours with 3-tier fallback:
+        # 1. Employee Overtime child table (per-day configuration)
+        # 2. Shift Type start_time/end_time (shift duration)
+        # 3. HR Settings standard_working_hours (system default)
         base_hours_from_shift = get_employee_base_hours_for_date(
             row['employee_id'],
             row['date'],
             employee_base_hours
         )
-        # Use shift-based base hours if available, otherwise use standard working hours
-        row['base_hours'] = base_hours_from_shift if base_hours_from_shift > 0 else standard_working_hours_seconds
+        if base_hours_from_shift > 0:
+            row['base_hours'] = base_hours_from_shift
+        else:
+            shift_duration = get_shift_duration_for_date(
+                row['employee_id'],
+                row['date'],
+                employee_shifts
+            )
+            row['base_hours'] = shift_duration if shift_duration > 0 else standard_working_hours_seconds
         
         # Calculate OT1 and UT based on working hours vs base hours
         base_hours_seconds = row['base_hours']
@@ -1011,10 +1026,10 @@ def get_employee_base_hours_for_date(employee_id, attendance_date, employee_base
     """
     if employee_id not in employee_base_hours:
         return 0
-    
+
     # Get the day name for the attendance date
     day_name = attendance_date.strftime('%A')
-    
+
     # Find the most recent shift assignment that applies to this date
     applicable_base_hours = None
     for base_hour_data in employee_base_hours[employee_id]:
@@ -1024,12 +1039,37 @@ def get_employee_base_hours_for_date(employee_id, attendance_date, employee_base
             if base_hour_data['day'] == day_name:
                 if applicable_base_hours is None or base_hour_data['from_date'] > applicable_base_hours['from_date']:
                     applicable_base_hours = base_hour_data
-    
+
     if applicable_base_hours:
         # Convert float hours to seconds (Frappe duration format)
         base_hours_float = applicable_base_hours['base_hours']
         return int(base_hours_float * 3600)  # Convert hours to seconds
-    
+
+    return 0
+
+
+def get_shift_duration_for_date(employee_id, attendance_date, employee_shifts):
+    """
+    Calculate base hours from the assigned Shift Type's start_time and end_time
+    for a specific employee on a specific date. Returns duration in seconds.
+    """
+    if employee_id not in employee_shifts:
+        return 0
+
+    # Find the most recent shift assignment that covers this date
+    applicable = None
+    for sa in employee_shifts[employee_id]:
+        if sa['start_date'] <= attendance_date:
+            if sa.get('end_date') is None or sa['end_date'] >= attendance_date:
+                if applicable is None or sa['start_date'] > applicable['start_date']:
+                    applicable = sa
+
+    if applicable and applicable.get('shift_start') is not None and applicable.get('shift_end') is not None:
+        duration = applicable['shift_end'] - applicable['shift_start']
+        duration_seconds = int(duration.total_seconds())
+        if duration_seconds > 0:
+            return duration_seconds
+
     return 0
 
 
