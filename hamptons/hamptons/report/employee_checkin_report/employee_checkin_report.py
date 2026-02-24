@@ -20,8 +20,9 @@ def execute(filters=None):
 
 	columns = get_columns()
 	data = get_data(filters)
+	summary = get_summary(data) if data else None
 
-	return columns, data
+	return columns, data, None, None, summary
 
 
 def get_columns():
@@ -132,8 +133,8 @@ def get_columns():
 		{
 			"fieldname": "regularization_status",
 			"label": _("Reg. Status"),
-			"fieldtype": "Data",
-			"width": 100
+			"fieldtype": "HTML",
+			"width": 120
 		},
 		{
 			"fieldname": "attendance",
@@ -145,8 +146,8 @@ def get_columns():
 		{
 			"fieldname": "attendance_status",
 			"label": _("Final Status"),
-			"fieldtype": "Data",
-			"width": 100
+			"fieldtype": "HTML",
+			"width": 140
 		}
 	]
 
@@ -248,58 +249,80 @@ def get_data(filters):
 		elif not row.get('last_out'):
 			row['early_exit_by'] = "No Checkout"  # Indicate missing checkout
 
-		# Compute final status based on Attendance record (created after approval)
-		# Priority: Attendance status > Regularization status > Computed status
-		if row.get('attendance_status'):
-			# Attendance record exists (created after Regularization approval)
-			# Keep the attendance_status as-is (Present, Absent, Half Day, On Leave, etc.)
-			pass
-		elif row.get('regularization'):
-			# Regularization exists but no Attendance yet
-			# Map regularization status to a meaningful final status
-			reg_status = row.get('regularization_status', '')
-			if reg_status == 'Approved':
-				row['attendance_status'] = 'Approved (Pending Attendance)'
-			elif reg_status == 'Pending':
-				row['attendance_status'] = 'Pending Approval'
-			elif reg_status == 'Rejected':
-				row['attendance_status'] = 'Rejected'
-			else:
-				row['attendance_status'] = reg_status
+		# Compute final status
+		# If regularization is Pending → always show "Pending AR" (highest priority)
+		reg_status = row.get('regularization_status', '')
+		att_status = row.get('attendance_status', '')
+
+		if row.get('regularization') and reg_status == 'Pending':
+			row['regularization_status'] = _format_status('Pending')
+			row['attendance_status'] = _format_status('Pending AR')
+		elif row.get('regularization') and reg_status == 'Approved':
+			row['regularization_status'] = _format_status('Approved')
+			row['attendance_status'] = _format_status(att_status if att_status else 'Approved')
+		elif row.get('regularization') and reg_status == 'Rejected':
+			row['regularization_status'] = _format_status('Rejected')
+			row['attendance_status'] = _format_status(att_status if att_status else 'Rejected')
+		elif att_status:
+			row['attendance_status'] = _format_status(att_status)
+			if not row.get('regularization_status') or not str(row.get('regularization_status', '')).startswith('<span'):
+				row['regularization_status'] = _format_status('OK')
 		else:
-			# No regularization exists - compute status based on issues
-			has_issues = False
+			# No regularization, no attendance - compute from issues
 			issues = []
-
-			# Check for late arrival
 			if row.get('late_by') and row.get('late_by') not in ("On Time", "No Check-in"):
-				has_issues = True
 				issues.append("Late")
-
-			# Check for missing check-in
 			if row.get('late_by') == "No Check-in":
-				has_issues = True
 				issues.append("No Check-in")
-
-			# Check for early exit
 			if row.get('early_exit_by') and row.get('early_exit_by') not in ("On Time", "No Checkout"):
-				has_issues = True
 				issues.append("Early Exit")
-
-			# Check for no checkout
 			if row.get('early_exit_by') == "No Checkout":
-				has_issues = True
 				issues.append("No Checkout")
 
-			# Set computed status
-			if has_issues:
-				row['regularization_status'] = "Needs Review"
-				row['attendance_status'] = "Needs Review"
+			if issues:
+				row['regularization_status'] = _format_status('Needs Review')
+				row['attendance_status'] = _format_status('Needs Review')
 			else:
-				row['regularization_status'] = "OK"
-				row['attendance_status'] = "OK"
+				row['regularization_status'] = _format_status('OK')
+				row['attendance_status'] = _format_status('Present')
 
 	return data
+
+
+def _format_status(status):
+	"""Format status with distinct colors."""
+	color_map = {
+		'Present': '#28a745',
+		'Absent': '#dc3545',
+		'Pending AR': '#e85d04',
+		'Pending': '#e6a817',
+		'Approved': '#28a745',
+		'Rejected': '#dc3545',
+		'Needs Review': '#d63384',
+		'OK': '#28a745',
+		'Half Day': '#fd7e14',
+		'On Leave': '#0d6efd',
+		'Mis-Punch': '#d63384',
+	}
+	color = color_map.get(status, '#555')
+	return f'<span style="color: {color}; font-weight: bold;">{status}</span>'
+
+
+def get_summary(data):
+	"""Return report summary cards."""
+	total = len(data)
+	present = len([d for d in data if 'Present' in str(d.get('attendance_status', '')) and 'Pending' not in str(d.get('attendance_status', ''))])
+	pending_ar = len([d for d in data if 'Pending AR' in str(d.get('attendance_status', ''))])
+	needs_review = len([d for d in data if 'Needs Review' in str(d.get('attendance_status', ''))])
+	absent = len([d for d in data if 'Absent' in str(d.get('attendance_status', ''))])
+
+	return [
+		{"label": _("Total Records"), "value": total, "indicator": "Blue"},
+		{"label": _("Present"), "value": present, "indicator": "Green"},
+		{"label": _("Pending AR"), "value": pending_ar, "indicator": "Orange"},
+		{"label": _("Needs Review"), "value": needs_review, "indicator": "Orange"},
+		{"label": _("Absent"), "value": absent, "indicator": "Red"},
+	]
 
 
 def get_conditions(filters):

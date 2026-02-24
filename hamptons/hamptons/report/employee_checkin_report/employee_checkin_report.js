@@ -65,31 +65,47 @@ frappe.query_reports["Employee Checkin Report"] = {
 			"default": 0
 		}
 	],
-	
+
 	"formatter": function(value, row, column, data, default_formatter) {
 		value = default_formatter(value, row, column, data);
-		
+
 		// Highlight late arrivals in red
 		if (column.fieldname == "late_by" && data.late_by && data.late_by != "On Time") {
-			value = `<span style="color: red; font-weight: bold;">${data.late_by}</span>`;
+			value = `<span style="color: #dc3545; font-weight: bold;">${data.late_by}</span>`;
 		}
-		
-		// Highlight early exits in orange
+
+		// Highlight early exits in pink
 		if (column.fieldname == "early_exit_by" && data.early_exit_by && data.early_exit_by != "On Time") {
-			value = `<span style="color: orange; font-weight: bold;">${data.early_exit_by}</span>`;
+			value = `<span style="color: #d63384; font-weight: bold;">${data.early_exit_by}</span>`;
 		}
-		
-		// Color code regularization status
-		if (column.fieldname == "regularization_status") {
-			if (data.regularization_status == "Open") {
-				value = `<span style="color: orange;">${data.regularization_status}</span>`;
-			} else if (data.regularization_status == "Completed") {
-				value = `<span style="color: green;">${data.regularization_status}</span>`;
-			} else if (data.regularization_status == "Rejected") {
-				value = `<span style="color: red;">${data.regularization_status}</span>`;
-			}
-		}
-		
+
 		return value;
+	},
+
+	after_datatable_render: function() {
+		$('.status-legend').remove();
+
+		var legend = `
+		<div class="status-legend" style="margin: 15px 0; padding: 12px 15px; border: 1px solid #eee; border-radius: 4px; background: #fafafa;">
+			<h6 style="margin-bottom: 10px; color: #333; font-weight: 600;">Status Legend</h6>
+			<div style="display: flex; flex-wrap: wrap;">
+				<div style="flex: 1; min-width: 320px;">
+					<table style="width: 100%;">
+						<tr><td style="padding: 4px 8px;"><span style="color: #28a745; font-weight: bold;">&#9679; Present / OK</span></td><td style="color: #555; font-size: 12px;">Checked in & out, no issues</td></tr>
+						<tr><td style="padding: 4px 8px;"><span style="color: #e85d04; font-weight: bold;">&#9679; Pending AR</span></td><td style="color: #555; font-size: 12px;">Regularization pending approval</td></tr>
+						<tr><td style="padding: 4px 8px;"><span style="color: #d63384; font-weight: bold;">&#9679; Needs Review</span></td><td style="color: #555; font-size: 12px;">Late / early exit / missing punch, no AR created</td></tr>
+					</table>
+				</div>
+				<div style="flex: 1; min-width: 320px;">
+					<table style="width: 100%;">
+						<tr><td style="padding: 4px 8px;"><span style="color: #dc3545; font-weight: bold;">&#9679; Absent / Rejected</span></td><td style="color: #555; font-size: 12px;">No record or regularization rejected</td></tr>
+						<tr><td style="padding: 4px 8px;"><span style="color: #0d6efd; font-weight: bold;">&#9679; On Leave</span></td><td style="color: #555; font-size: 12px;">On approved leave</td></tr>
+						<tr><td style="padding: 4px 8px;"><span style="color: #fd7e14; font-weight: bold;">&#9679; Half Day</span></td><td style="color: #555; font-size: 12px;">Worked a half day</td></tr>
+					</table>
+				</div>
+			</div>
+		</div>`;
+
+		$('.report-wrapper').after(legend);
 	}
 };

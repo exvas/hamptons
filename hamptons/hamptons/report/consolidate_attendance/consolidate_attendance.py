@@ -11,10 +11,10 @@ import re
 def execute(filters=None):
     columns = get_columns()
     data = get_data(filters)
-    
+
     # Add summary row for performance metrics
     summary = get_summary(data) if data else None
-    
+
     return columns, data, None, None, summary
 
 def get_columns():
@@ -260,6 +260,57 @@ def get_data(filters):
     for att in attendance_records:
         key = f"{att['employee_id']}_{att['date']}"
         attendance_status_lookup[key] = att
+
+    # Get Attendance Regularization records for the date range (pending AND approved)
+    # This allows the report to show "Pending" when AR is awaiting approval
+    ar_query = """
+        SELECT ar.employee, ar.posting_date, ar.status, ar.name, ar.docstatus
+        FROM `tabAttendance Regularization` ar
+        WHERE ar.posting_date BETWEEN %s AND %s
+        AND ar.docstatus IN (0, 1)
+    """
+    ar_params = [filters.from_date, filters.to_date]
+    if filters.get('employee_id'):
+        ar_query += " AND ar.employee = %s"
+        ar_params.append(filters.get('employee_id'))
+
+    ar_records = frappe.db.sql(ar_query, tuple(ar_params), as_dict=True)
+
+    # Create AR lookups by employee and date
+    pending_ar_lookup = {}   # Pending (draft, status=Pending)
+    approved_ar_lookup = {}  # Approved (submitted)
+    for ar in ar_records:
+        key = (ar['employee'], ar['posting_date'])
+        if ar['docstatus'] == 0 and ar['status'] == 'Pending':
+            pending_ar_lookup[key] = ar['name']
+        elif ar['docstatus'] == 1:
+            approved_ar_lookup[key] = ar['name']
+
+    # Get active shift assignments for dynamic shift validation
+    # This enables detecting late/early even when no AR was created
+    shift_query = """
+        SELECT sa.employee, sa.shift_type, sa.start_date, sa.end_date,
+               st.start_time as shift_start, st.end_time as shift_end,
+               st.late_entry_grace_period, st.early_exit_grace_period
+        FROM `tabShift Assignment` sa
+        JOIN `tabShift Type` st ON sa.shift_type = st.name
+        WHERE sa.docstatus = 1
+        AND sa.start_date <= %s
+        AND (sa.end_date IS NULL OR sa.end_date >= %s)
+    """
+    shift_params = [filters.to_date, filters.from_date]
+    if filters.get('employee_id'):
+        shift_query += " AND sa.employee = %s"
+        shift_params.append(filters.get('employee_id'))
+
+    shift_assignments = frappe.db.sql(shift_query, tuple(shift_params), as_dict=True)
+
+    # Create shift lookup: employee -> shift details (use latest assignment)
+    shift_lookup = {}
+    for sa in shift_assignments:
+        emp = sa['employee']
+        if emp not in shift_lookup or sa['start_date'] > shift_lookup[emp]['start_date']:
+            shift_lookup[emp] = sa
 
     # Get earliest check-in and latest check-out per employee per day from Employee Checkin
     # Include both draft (docstatus=0) and submitted (docstatus=1) checkins
@@ -792,9 +843,21 @@ def get_data(filters):
             row['base_hours'] = 0
         # Otherwise, determine the final status and leave_type normally
         elif row['original_status'] == 'Present':
+            ar_key = (row['employee_id'], row['date'])
             # Present with only IN time (no OUT) is actually a Mis-Punch
             if row.get('in_time') and not row.get('out_time'):
                 row['status'] = format_attendance_status('Mis-Punch')
+            # Check if there's a pending Attendance Regularization for this employee/date
+            elif ar_key in pending_ar_lookup:
+                row['status'] = format_attendance_status('Pending AR')
+            # Dynamic shift validation: detect late/early even without an AR
+            elif ar_key not in approved_ar_lookup and row.get('in_time') and row['employee_id'] in shift_lookup:
+                shift = shift_lookup[row['employee_id']]
+                needs_review = _check_shift_violation(row, shift)
+                if needs_review:
+                    row['status'] = format_attendance_status('Pending AR')
+                else:
+                    row['status'] = format_attendance_status('PR')
             else:
                 row['status'] = format_attendance_status('PR')
             row['leave_type'] = ''
@@ -840,8 +903,14 @@ def get_data(filters):
                 row['leave_type'] = row['attendance_leave_type'].strip()
             else:
                 row['leave_type'] = ''
+            # Check if there's a pending AR - override to Pending AR
+            if (row['employee_id'], row['date']) in pending_ar_lookup:
+                if row['original_status'] == 'Absent' and row.get('in_time'):
+                    row['status'] = format_attendance_status('Mis-Punch')
+                else:
+                    row['status'] = format_attendance_status('Pending AR')
             # Distinguish Absent with in_time (mis-punch / missing checkout) from true Absent
-            if row['original_status'] == 'Absent' and row.get('in_time'):
+            elif row['original_status'] == 'Absent' and row.get('in_time'):
                 row['status'] = format_attendance_status('Mis-Punch')
             else:
                 row['status'] = format_attendance_status(row['original_status'] or 'Absent')
@@ -863,6 +932,76 @@ def get_data(filters):
         data = filtered_data
     
     return data
+
+
+def _check_shift_violation(row, shift):
+    """
+    Dynamically check if an employee's attendance violates their shift rules.
+    Detects late entry or early exit by comparing actual times against shift times,
+    respecting grace periods from the Shift Type.
+
+    Args:
+        row: Report data row with in_time (HH:MM AM/PM format) and out_time
+        shift: Shift assignment dict with shift_start, shift_end,
+               late_entry_grace_period, early_exit_grace_period
+
+    Returns:
+        True if a shift violation is detected (late/early), False otherwise
+    """
+    from datetime import time as dt_time
+
+    try:
+        shift_start = shift.get('shift_start')
+        shift_end = shift.get('shift_end')
+        late_grace = int(shift.get('late_entry_grace_period') or 0)
+        early_grace = int(shift.get('early_exit_grace_period') or 0)
+
+        if not shift_start or not shift_end:
+            return False
+
+        # Convert timedelta to time if needed (Frappe stores Time fields as timedelta)
+        if isinstance(shift_start, timedelta):
+            total_secs = int(shift_start.total_seconds())
+            shift_start_time = dt_time(total_secs // 3600, (total_secs % 3600) // 60)
+        else:
+            shift_start_time = get_time(shift_start)
+
+        if isinstance(shift_end, timedelta):
+            total_secs = int(shift_end.total_seconds())
+            shift_end_time = dt_time(total_secs // 3600, (total_secs % 3600) // 60)
+        else:
+            shift_end_time = get_time(shift_end)
+
+        # Apply grace periods
+        shift_start_with_grace = (
+            datetime.combine(row['date'], shift_start_time) + timedelta(minutes=late_grace)
+        ).time()
+        shift_end_with_grace = (
+            datetime.combine(row['date'], shift_end_time) - timedelta(minutes=early_grace)
+        ).time()
+
+        # Check late entry
+        if row.get('in_time'):
+            try:
+                in_time = datetime.strptime(row['in_time'], '%I:%M %p').time()
+                if in_time > shift_start_with_grace:
+                    return True
+            except (ValueError, TypeError):
+                pass
+
+        # Check early exit
+        if row.get('out_time'):
+            try:
+                out_time = datetime.strptime(row['out_time'], '%I:%M %p').time()
+                if out_time < shift_end_with_grace:
+                    return True
+            except (ValueError, TypeError):
+                pass
+
+    except Exception:
+        pass
+
+    return False
 
 
 def get_employee_base_hours_for_date(employee_id, attendance_date, employee_base_hours):
@@ -902,27 +1041,28 @@ def format_attendance_status(status):
         return status
         
     color_map = {
-        'Week Off': '<span style="color: blue; font-weight: bold;">Week Off</span>',
-        'Week Off (Holiday)': '<span style="color: blue; font-weight: bold;">Week Off (Holiday)</span>',
-        'PR': '<span style="color: green; font-weight: bold;">Present</span>',
-        'Present': '<span style="color: green; font-weight: bold;">Present</span>',
-        'Absent': '<span style="color: red; font-weight: bold;">Absent</span>',
-        'Pending': '<span style="color: orange; font-weight: bold;">Pending</span>',
-        'Holiday': '<span style="color: purple; font-weight: bold;">Holiday</span>',
-        'Mis-Punch': '<span style="color: orange; font-weight: bold;">Mis-Punch</span>',
-        'On Leave': '<span style="color: blue; font-weight: bold;">On Leave</span>',
-        'Half Day': '<span style="color: #FF6600; font-weight: bold;">Half Day</span>',
-        'Work From Home': '<span style="color: #0099CC; font-weight: bold;">Work From Home</span>'
+        'PR': '<span style="color: #28a745; font-weight: bold;">Present</span>',
+        'Present': '<span style="color: #28a745; font-weight: bold;">Present</span>',
+        'Pending AR': '<span style="color: #e85d04; font-weight: bold;">Pending AR</span>',
+        'Pending': '<span style="color: #e6a817; font-weight: bold;">Pending</span>',
+        'Mis-Punch': '<span style="color: #d63384; font-weight: bold;">Mis-Punch</span>',
+        'Absent': '<span style="color: #dc3545; font-weight: bold;">Absent</span>',
+        'Week Off': '<span style="color: #5B5EA6; font-weight: bold;">Week Off</span>',
+        'Week Off (Holiday)': '<span style="color: #7B68AE; font-weight: bold;">Week Off (Holiday)</span>',
+        'Holiday': '<span style="color: #9b59b6; font-weight: bold;">Holiday</span>',
+        'On Leave': '<span style="color: #0d6efd; font-weight: bold;">On Leave</span>',
+        'Half Day': '<span style="color: #fd7e14; font-weight: bold;">Half Day</span>',
+        'Work From Home': '<span style="color: #20c997; font-weight: bold;">Work From Home</span>'
     }
-    
+
     # Handle Holiday with punch status (e.g., "Holiday (Present)")
     if status.startswith('Holiday (') and status.endswith(')'):
-        return f'<span style="color: purple; font-weight: bold;">{status}</span>'
-    
+        return f'<span style="color: #9b59b6; font-weight: bold;">{status}</span>'
+
     # Check if status is a leave type (not in predefined statuses)
     if status not in color_map:
-        # Assume it's a leave type, color it blue
-        return f'<span style="color: blue; font-weight: bold;">{status}</span>'
+        # Assume it's a leave type, color it teal
+        return f'<span style="color: #0891b2; font-weight: bold;">{status}</span>'
     
     return color_map.get(status, status)
 
@@ -975,8 +1115,10 @@ def get_summary(data):
     holiday_count = len([d for d in data if 'Holiday' in str(d.get("status", "")) and 'Week Off' not in str(d.get("status", ""))])
     # Count Mis-Punch (Absent with in_time - missing checkout)
     mis_punch_count = len([d for d in data if 'Mis-Punch' in str(d.get("status", ""))])
-    # Count Pending (checkins exist but no Attendance record yet)
-    pending_count = len([d for d in data if 'Pending' in str(d.get("status", ""))])
+    # Count Pending AR (attendance exists but regularization awaiting approval)
+    pending_ar_count = len([d for d in data if 'Pending AR' in str(d.get("status", ""))])
+    # Count Pending (checkins exist but no Attendance record yet) - exclude "Pending AR"
+    pending_count = len([d for d in data if 'Pending' in str(d.get("status", "")) and 'Pending AR' not in str(d.get("status", ""))])
 
     return [
         {
@@ -1002,6 +1144,11 @@ def get_summary(data):
         {
             "label": "Mis-Punch",
             "value": mis_punch_count,
+            "indicator": "Orange"
+        },
+        {
+            "label": "Pending AR",
+            "value": pending_ar_count,
             "indicator": "Orange"
         },
         {
