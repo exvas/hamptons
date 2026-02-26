@@ -136,7 +136,8 @@ doctype_list_js = {
 # Override standard doctype classes
 
 override_doctype_class = {
-	"Department": "hamptons.overrides.department.CustomDepartment"
+	"Department": "hamptons.overrides.department.CustomDepartment",
+	"Attendance Request": "hamptons.overrides.attendance_request.HamptonsAttendanceRequest"
 }
 
 # App startup hooks

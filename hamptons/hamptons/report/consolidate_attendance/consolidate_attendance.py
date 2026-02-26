@@ -278,12 +278,12 @@ def get_data(filters):
 
     # Create AR lookups by employee and date
     pending_ar_lookup = {}   # Pending (draft, status=Pending)
-    approved_ar_lookup = {}  # Approved (submitted)
+    approved_ar_lookup = {}  # Approved (draft with status=Approved, or submitted)
     for ar in ar_records:
         key = (ar['employee'], ar['posting_date'])
         if ar['docstatus'] == 0 and ar['status'] == 'Pending':
             pending_ar_lookup[key] = ar['name']
-        elif ar['docstatus'] == 1:
+        elif ar['docstatus'] == 1 or (ar['docstatus'] == 0 and ar['status'] == 'Approved'):
             approved_ar_lookup[key] = ar['name']
 
     # Get active shift assignments for dynamic shift validation

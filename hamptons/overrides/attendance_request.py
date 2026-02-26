@@ -5,11 +5,75 @@
 Attendance Request Override
 - Custom workflow notifications for Attendance Request (HOD-only approval)
 - Link Attendance Request approval to Attendance Regularization
+- Override validation to allow AR when attendance regularization is pending
 """
 
 import frappe
 from frappe import _
-from frappe.utils import get_url_to_form, getdate
+from frappe.utils import add_days, date_diff, get_url_to_form, getdate
+
+from hrms.hr.doctype.attendance_request.attendance_request import AttendanceRequest
+
+
+class HamptonsAttendanceRequest(AttendanceRequest):
+	"""Override AttendanceRequest to handle regularization-aware validation.
+
+	Standard HRMS blocks Attendance Requests when attendance already exists with the
+	same status (e.g. Present → Present). In Hamptons, employees submit ARs to
+	regularize early exits / late entries — the attendance record already exists but
+	has a pending Attendance Regularization that needs approval via the AR workflow.
+	"""
+
+	@frappe.whitelist()
+	def get_attendance_warnings(self):
+		"""Mark regularization-pending dates as 'Regularize' instead of 'Skip'."""
+		warnings = super().get_attendance_warnings()
+
+		for warning in warnings:
+			if (
+				warning.get("action") == "Skip"
+				and warning.get("reason") == "Attendance status unchanged"
+				and self._needs_regularization(warning["date"])
+			):
+				attendance = self.get_attendance_doc(warning["date"])
+				warning["action"] = "Overwrite"
+				warning["reason"] = "Attendance regularization pending approval"
+				if attendance:
+					warning["record"] = attendance.name
+
+		return warnings
+
+	def create_or_update_attendance(self, date):
+		"""Link AR to existing attendance when regularization is pending."""
+		doc = self.get_attendance_doc(date)
+		status = self.get_attendance_status(date)
+
+		if doc and doc.status == status:
+			# Status unchanged — just link the AR to the attendance record
+			if not doc.attendance_request:
+				doc.db_set("attendance_request", self.name)
+		else:
+			super().create_or_update_attendance(date)
+
+	def _needs_regularization(self, date):
+		"""Check if attendance on this date has a pending regularization or flagged deviation."""
+		if frappe.db.exists(
+			"Attendance Regularization",
+			{
+				"employee": self.employee,
+				"posting_date": getdate(date),
+				"docstatus": 0,
+				"status": "Pending",
+			},
+		):
+			return True
+
+		# Fallback: attendance flagged with late_entry or early_exit but no regularization
+		attendance = self.get_attendance_doc(date)
+		if attendance and (attendance.late_entry or attendance.early_exit):
+			return True
+
+		return False
 
 
 def on_update_attendance_request(doc, method=None):
