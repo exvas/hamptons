@@ -207,6 +207,10 @@ scheduler_events = {
 			"hamptons.utils.visa_notifications.send_visa_expiry_alerts"
 		]
 	},
+	"daily": [
+		# Override HRMS work anniversary reminders to ensure Left employees are excluded
+		"hamptons.overrides.employee_reminders.send_work_anniversary_reminders"
+	],
 	"hourly": [
 		"hamptons.hamptons.doctype.crosschex_settings.crosschex_settings.check_and_refresh_token"
 	]
