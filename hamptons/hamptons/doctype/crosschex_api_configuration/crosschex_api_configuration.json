@@ -80,7 +80,7 @@
    "fieldname": "connection_status",
    "fieldtype": "Select",
    "label": "Connection Status",
-   "options": "Not Tested\nConnected\nError",
+   "options": "Not Tested\nConnected\nError\nDisconnected",
    "read_only": 1
   },
   {
