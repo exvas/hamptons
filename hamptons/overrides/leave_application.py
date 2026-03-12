@@ -5,11 +5,45 @@
 Leave Application Override
 - Marks Hajj Leave as consumed when Leave Application is approved
 - Custom workflow notifications for Leave Application (HOD-only approval)
+- Auto-cancels conflicting attendance records when leave is submitted
 """
 
 import frappe
 from frappe import _
 from frappe.utils import getdate, add_days, today, get_url_to_form
+from hrms.hr.doctype.leave_application.leave_application import LeaveApplication
+
+
+class HamptonsLeaveApplication(LeaveApplication):
+	def validate_attendance(self):
+		"""
+		Override to cancel and delete conflicting attendance records instead of blocking.
+		Biometric-generated Present attendance should be removed when leave is applied.
+		"""
+		attendance_records = frappe.get_all(
+			"Attendance",
+			filters={
+				"employee": self.employee,
+				"attendance_date": ("between", [self.from_date, self.to_date]),
+				"status": ("in", ["Present", "Work From Home"]),
+				"docstatus": 1,
+				"half_day_status": ("!=", "Absent"),
+			},
+			fields=["name", "attendance_date"],
+		)
+
+		for record in attendance_records:
+			attendance_doc = frappe.get_doc("Attendance", record.name)
+			attendance_doc.cancel()
+			frappe.delete_doc("Attendance", record.name, ignore_permissions=True)
+			frappe.msgprint(
+				_("Attendance for {0} on {1} has been cancelled to allow this leave application.").format(
+					self.employee,
+					frappe.format(record.attendance_date, {"fieldtype": "Date"}),
+				),
+				indicator="orange",
+				alert=True,
+			)
 
 
 def validate_leave_application(doc, method=None):
