@@ -150,18 +150,19 @@ class LeaveWithdrawalRequest(Document):
 				frappe.log_error(f"SQL cancel also failed for leave application: {str(sql_e)}")
 				frappe.throw(_("Failed to cancel Leave Application. Please contact administrator."))
 
+		# Always update workflow_state to "Cancelled" so the indicator shows correctly
+		# (the workflow overrides the indicator based on workflow_state, not docstatus)
+		try:
+			frappe.db.set_value("Leave Application", self.leave_application, "workflow_state", "Cancelled")
+			frappe.db.commit()
+		except Exception:
+			pass
+
 		frappe.msgprint(_("Leave Application {0} has been cancelled").format(self.leave_application))
 
 	def after_insert(self):
-		"""Schedule leave application cancellation and HR notification"""
-		# Use enqueue to run cancellation after the transaction is committed
-		frappe.enqueue(
-			"hamptons.hamptons.doctype.leave_withdrawal_request.leave_withdrawal_request.process_withdrawal_request",
-			queue="short",
-			withdrawal_request=self.name,
-			leave_application=self.leave_application,
-			now=True  # Run immediately but in separate transaction
-		)
+		"""Notify HR about the new withdrawal request pending review"""
+		self.notify_hr()
 
 	def notify_hr(self):
 		"""Send notification to HR about leave withdrawal"""
@@ -321,30 +322,6 @@ class LeaveWithdrawalRequest(Document):
 			)
 		except Exception:
 			pass
-
-
-def process_withdrawal_request(withdrawal_request, leave_application):
-	"""Process leave withdrawal - cancel leave application and notify HR"""
-	try:
-		# Get the withdrawal request document
-		withdrawal_doc = frappe.get_doc("Leave Withdrawal Request", withdrawal_request)
-
-		# Cancel the leave application
-		withdrawal_doc.cancel_leave_application()
-
-		# Update status to Approved
-		frappe.db.set_value("Leave Withdrawal Request", withdrawal_request, "status", "Approved")
-		frappe.db.commit()
-
-		# Notify HR
-		withdrawal_doc.reload()
-		withdrawal_doc.notify_hr()
-
-	except Exception as e:
-		frappe.log_error(
-			title=f"Leave Withdrawal Processing Failed: {withdrawal_request}",
-			message=f"Error processing withdrawal request {withdrawal_request} for leave {leave_application}: {str(e)}\n\n{frappe.get_traceback()}"
-		)
 
 
 @frappe.whitelist()
