@@ -44,12 +44,13 @@ frappe.ui.form.on('Leave Application', {
     },
 
     before_save: function(frm) {
-        // Remind about attachment for Sick Leave (attachment can only be added after first save)
-        if (frm.doc.leave_type === 'Sick Leave' && frm.is_new()) {
-            frappe.show_alert({
-                message: __('Please attach a medical certificate/document after saving.'),
-                indicator: 'orange'
-            }, 7);
+        if (frm.doc.leave_type === 'Sick Leave') {
+            if (!frm.doc.custom_medical_certificate) {
+                let attachments = frm.attachments ? frm.attachments.get_attachments() : [];
+                if (!attachments || attachments.length === 0) {
+                    frappe.throw(__('Please upload a medical certificate before saving a Sick Leave application.'));
+                }
+            }
         }
     },
 
@@ -59,22 +60,14 @@ frappe.ui.form.on('Leave Application', {
     },
 
     before_workflow_action: function(frm) {
-        // Block workflow actions (submit/approve) if Sick Leave has no attachment
-        if (frm.doc.leave_type === 'Sick Leave') {
-            let attachments = frm.attachments.get_attachments();
-            if (!attachments || attachments.length === 0) {
-                frappe.throw(__('Please attach a medical certificate/document before submitting a Sick Leave application.'));
-            }
+        if (frm.doc.leave_type === 'Sick Leave' && !has_medical_certificate(frm)) {
+            frappe.throw(__('Please upload a medical certificate before submitting a Sick Leave application.'));
         }
     },
 
     before_submit: function(frm) {
-        // Block submit if Sick Leave has no attachment
-        if (frm.doc.leave_type === 'Sick Leave') {
-            let attachments = frm.attachments.get_attachments();
-            if (!attachments || attachments.length === 0) {
-                frappe.throw(__('Please attach a medical certificate/document before submitting a Sick Leave application.'));
-            }
+        if (frm.doc.leave_type === 'Sick Leave' && !has_medical_certificate(frm)) {
+            frappe.throw(__('Please upload a medical certificate before submitting a Sick Leave application.'));
         }
     },
 
@@ -140,24 +133,23 @@ function show_withdraw_dialog(frm) {
     d.show();
 }
 
+function has_medical_certificate(frm) {
+    if (frm.doc.custom_medical_certificate) return true;
+    let attachments = frm.attachments ? frm.attachments.get_attachments() : [];
+    return attachments && attachments.length > 0;
+}
+
 function check_sick_leave_attachment(frm) {
-    if (frm.doc.leave_type === 'Sick Leave' && !frm.is_new()) {
-        let attachments = frm.attachments ? frm.attachments.get_attachments() : [];
-        if (!attachments || attachments.length === 0) {
+    if (frm.doc.leave_type === 'Sick Leave') {
+        if (!has_medical_certificate(frm)) {
             frm.dashboard.set_headline_alert(
-                __('Attachment Required: Please attach a medical certificate/document for Sick Leave.'),
+                __('Medical Certificate Required: Please upload a medical certificate for Sick Leave.'),
                 'red'
             );
         } else {
             frm.dashboard.clear_headline();
         }
-    } else if (frm.doc.leave_type === 'Sick Leave' && frm.is_new()) {
-        frm.set_intro(
-            __('Note: A medical certificate/document attachment is required for Sick Leave. You can attach it after saving the form.'),
-            'orange'
-        );
     } else {
-        // Clear sick leave messages if leave type changed
         frm.dashboard.clear_headline();
     }
 }

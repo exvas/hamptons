@@ -49,19 +49,23 @@ class HamptonsLeaveApplication(LeaveApplication):
 def validate_leave_application(doc, method=None):
 	"""
 	Validate Leave Application:
-	- Sick Leave requires attachment (medical certificate)
+	- Sick Leave requires attachment (medical certificate) on every save (except first save)
 	- Annual Leave: show warning for short notice
 	"""
-	# Sick Leave: require attachment before submission
-	if doc.leave_type == "Sick Leave" and doc.docstatus == 1:
-		attachments = frappe.get_all("File", filters={
-			"attached_to_doctype": "Leave Application",
-			"attached_to_name": doc.name
-		})
-		if not attachments:
+	# Sick Leave: require medical certificate (Attach field or sidebar attachment)
+	if doc.leave_type == "Sick Leave":
+		has_attach_field = bool(doc.custom_medical_certificate)
+		has_sidebar_attachment = False
+		if not doc.is_new():
+			has_sidebar_attachment = bool(frappe.get_all("File", filters={
+				"attached_to_doctype": "Leave Application",
+				"attached_to_name": doc.name
+			}, limit=1))
+
+		if not has_attach_field and not has_sidebar_attachment:
 			frappe.throw(
-				_("Please attach a medical certificate/document before submitting a Sick Leave application."),
-				title=_("Attachment Required")
+				_("Please upload a medical certificate before saving a Sick Leave application."),
+				title=_("Medical Certificate Required")
 			)
 
 	# Show warning message for Annual Leave without 2 weeks advance notice
