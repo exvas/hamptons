@@ -816,15 +816,16 @@ def consolidate_attendance_for_date(processing_date):
 					else:
 						correct_status = att_doc.status  # No checkins, keep as-is
 
-					# Update in_time
-					if first_in_time and not att_doc.in_time:
-						att_doc.db_set("in_time", first_in_time, update_modified=False)
+					# Update in_time (use earlier time if new checkin is earlier)
+					if first_in_time:
+						if not att_doc.in_time or get_datetime(first_in_time) < get_datetime(att_doc.in_time):
+							att_doc.db_set("in_time", first_in_time, update_modified=False)
 
 					# Update out_time and working_hours when both IN and OUT exist
+					# Always update if new OUT time is later (more punches arrived since last run)
 					if first_in_time and last_out_time:
-						if not att_doc.out_time:
+						if not att_doc.out_time or get_datetime(last_out_time) > get_datetime(att_doc.out_time):
 							att_doc.db_set("out_time", last_out_time, update_modified=False)
-						if not att_doc.working_hours or float(att_doc.working_hours) == 0:
 							att_doc.db_set("working_hours", round(working_hours, 2), update_modified=False)
 
 					# Correct status if it doesn't match checkin reality
