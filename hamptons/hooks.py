@@ -242,9 +242,9 @@ scheduler_events = {
 # Overriding Methods
 # ------------------------------
 #
-# override_whitelisted_methods = {
-# 	"frappe.desk.doctype.event.event.get_events": "hamptons.event.get_events"
-# }
+override_whitelisted_methods = {
+	"hrms.api.get_leave_balance_map": "hamptons.overrides.leave_application.get_leave_balance_map_annual_only"
+}
 #
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,

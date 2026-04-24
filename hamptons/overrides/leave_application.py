@@ -14,6 +14,14 @@ from frappe.utils import getdate, add_days, today, get_url_to_form
 from hrms.hr.doctype.leave_application.leave_application import LeaveApplication
 
 
+@frappe.whitelist()
+def get_leave_balance_map_annual_only():
+	"""Mobile app leave balance map - only returns Annual Leave."""
+	from hrms.api import get_leave_balance_map
+	full_map = get_leave_balance_map()
+	return {k: v for k, v in full_map.items() if k == "Annual Leave"}
+
+
 class HamptonsLeaveApplication(LeaveApplication):
 	def validate_attendance(self):
 		"""

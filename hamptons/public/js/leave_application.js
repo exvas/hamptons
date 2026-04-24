@@ -1,6 +1,29 @@
 // Leave Application customizations for Hamptons
+
+// Filter the "Allocated Leaves" dashboard to show only Annual Leave.
+// Patches frappe.render_template so the data is filtered before the HTML is built.
+(function patch_leave_dashboard_template() {
+    if (frappe._hamptons_leave_dashboard_patched) return;
+    frappe._hamptons_leave_dashboard_patched = true;
+
+    const original_render = frappe.render_template;
+    frappe.render_template = function(template_name, data) {
+        if (template_name === 'leave_application_dashboard' && data && data.data) {
+            const filtered = {};
+            Object.keys(data.data).forEach(function(leave_type) {
+                if (leave_type === 'Annual Leave') {
+                    filtered[leave_type] = data.data[leave_type];
+                }
+            });
+            data = Object.assign({}, data, { data: filtered });
+        }
+        return original_render.call(this, template_name, data);
+    };
+})();
+
 frappe.ui.form.on('Leave Application', {
     refresh: function(frm) {
+        filter_dashboard_to_annual_leave(frm);
         // Add Withdraw button for approved leave applications
         if (frm.doc.docstatus === 1 && frm.doc.status === 'Approved') {
             // Check if leave hasn't ended yet
@@ -43,6 +66,10 @@ frappe.ui.form.on('Leave Application', {
         check_sick_leave_attachment(frm);
     },
 
+    employee: function(frm) {
+        filter_dashboard_to_annual_leave(frm);
+    },
+
     before_save: function(frm) {
         if (frm.doc.leave_type === 'Sick Leave') {
             if (!frm.doc.custom_medical_certificate) {
@@ -74,13 +101,19 @@ frappe.ui.form.on('Leave Application', {
     from_date: function(frm) {
         // Check warning when from_date changes
         check_leave_advance_notice(frm);
+        filter_dashboard_to_annual_leave(frm);
     },
 
     to_date: function(frm) {
         // Recheck when to_date changes (in case it affects the display)
         check_leave_advance_notice(frm);
+        filter_dashboard_to_annual_leave(frm);
     }
 });
+
+function filter_dashboard_to_annual_leave(frm) {
+    // No-op: filtering is done via frappe.render_template patch above.
+}
 
 function show_withdraw_dialog(frm) {
     let d = new frappe.ui.Dialog({
