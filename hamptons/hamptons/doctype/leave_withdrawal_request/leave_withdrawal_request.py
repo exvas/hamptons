@@ -161,39 +161,44 @@ class LeaveWithdrawalRequest(Document):
 		frappe.msgprint(_("Leave Application {0} has been cancelled").format(self.leave_application))
 
 	def after_insert(self):
-		"""Notify HR about the new withdrawal request pending review"""
-		self.notify_hr()
+		"""Notify HOD (line manager) about the new withdrawal request pending review"""
+		self.notify_hod()
 
-	def notify_hr(self):
-		"""Send notification to HR about leave withdrawal"""
-		# Get HR Manager users
-		hr_users = frappe.get_all(
-			"Has Role",
-			filters={"role": ["in", ["HR Manager", "HR User"]], "parenttype": "User"},
-			fields=["parent"],
-			distinct=True
-		)
+	def get_hod_recipients(self):
+		"""Get HOD email addresses - reports_to first, fallback to department HOD role."""
+		recipients = []
+		employee = frappe.get_doc("Employee", self.employee)
 
-		if not hr_users:
+		if employee.reports_to:
+			hod = frappe.get_doc("Employee", employee.reports_to)
+			hod_email = hod.prefered_email or hod.company_email or hod.personal_email
+			if hod_email:
+				recipients.append(hod_email)
+
+		if not recipients and employee.department:
+			dept_hods = frappe.db.sql("""
+				SELECT DISTINCT u.email
+				FROM `tabUser` u
+				INNER JOIN `tabHas Role` hr ON hr.parent = u.name
+				INNER JOIN `tabEmployee` e ON e.user_id = u.name
+				WHERE hr.role = 'HOD'
+				AND e.department = %s
+				AND u.enabled = 1
+				AND u.email IS NOT NULL
+			""", (employee.department,), as_dict=True)
+			recipients.extend([d.email for d in dept_hods if d.email])
+
+		return list(set(recipients))
+
+	def notify_hod(self):
+		"""Send notification to line manager (HOD) about leave withdrawal request."""
+		recipients = self.get_hod_recipients()
+		if not recipients:
 			return
 
-		# Filter out system users and invalid email addresses
-		valid_hr_users = []
-		for hr_user in hr_users:
-			user_email = hr_user.parent
-			# Skip system users and non-email usernames
-			if user_email in ["Administrator", "Guest"] or "@" not in user_email:
-				continue
-			# Check if user is enabled
-			if frappe.db.get_value("User", user_email, "enabled"):
-				valid_hr_users.append(hr_user)
-
-		if not valid_hr_users:
-			return
-
-		subject = _("Leave Withdrawn by {0}").format(self.employee_name)
+		subject = _("Leave Withdrawal Request - {0}").format(self.employee_name)
 		message = _("""
-			<p>Employee <b>{employee_name}</b> ({employee}) has withdrawn their leave.</p>
+			<p>Employee <b>{employee_name}</b> ({employee}) has requested to withdraw their leave.</p>
 			<p><b>Leave Details:</b></p>
 			<ul>
 				<li>Leave Type: {leave_type}</li>
@@ -203,8 +208,8 @@ class LeaveWithdrawalRequest(Document):
 			</ul>
 			<p><b>Reason for Withdrawal:</b></p>
 			<p>{reason}</p>
-			<p>The leave application <b>{leave_application}</b> has been cancelled and leave balance restored.</p>
-			<p><a href="/app/leave-withdrawal-request/{name}">View Details</a></p>
+			<p>Please review and Approve or Reject this request.</p>
+			<p><a href="/app/leave-withdrawal-request/{name}">View Withdrawal Request</a></p>
 		""").format(
 			employee_name=self.employee_name,
 			employee=self.employee,
@@ -213,31 +218,29 @@ class LeaveWithdrawalRequest(Document):
 			to_date=self.to_date,
 			total_leave_days=self.total_leave_days,
 			reason=self.reason,
-			leave_application=self.leave_application,
 			name=self.name
 		)
 
-		# Check if outgoing email is enabled before sending
 		from hamptons.utils.email_utils import is_outgoing_email_enabled
 		if is_outgoing_email_enabled():
-			for hr_user in valid_hr_users:
+			for recipient in recipients:
 				try:
 					frappe.sendmail(
-						recipients=[hr_user.parent],
+						recipients=[recipient],
 						subject=subject,
 						message=message,
 						reference_doctype=self.doctype,
-						reference_name=self.name
+						reference_name=self.name,
+						now=True
 					)
 				except Exception:
-					pass  # Continue even if email fails
+					pass
 
-		# Create notification in system
-		for hr_user in valid_hr_users:
+		for recipient in recipients:
 			try:
 				notification = frappe.new_doc("Notification Log")
 				notification.subject = subject
-				notification.for_user = hr_user.parent
+				notification.for_user = recipient
 				notification.type = "Alert"
 				notification.document_type = self.doctype
 				notification.document_name = self.name
