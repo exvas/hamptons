@@ -46,23 +46,29 @@ class LeaveWithdrawalRequest(Document):
 			frappe.throw(_("A pending withdrawal request already exists for this leave application"))
 
 	def on_submit(self):
-		"""When HR approves the withdrawal"""
+		"""When HR/HOD approves or rejects the withdrawal"""
+		self._process_decision()
+
+	def on_update_after_submit(self):
+		"""Workflow transition can update status after submit. Re-process decision."""
+		# Only process if status just changed to Approved/Rejected and not already processed
+		if self.status in ("Approved", "Rejected") and not self.processed_on:
+			self._process_decision()
+
+	def _process_decision(self):
+		"""Cancel leave application on Approved, notify employee on either decision."""
 		if self.status == "Approved":
 			self.cancel_leave_application()
-			self.processed_by = frappe.session.user
-			self.processed_on = now_datetime()
 			frappe.db.set_value("Leave Withdrawal Request", self.name, {
-				"processed_by": self.processed_by,
-				"processed_on": self.processed_on
-			})
+				"processed_by": frappe.session.user,
+				"processed_on": now_datetime()
+			}, update_modified=False)
 			self.notify_employee_approved()
 		elif self.status == "Rejected":
-			self.processed_by = frappe.session.user
-			self.processed_on = now_datetime()
 			frappe.db.set_value("Leave Withdrawal Request", self.name, {
-				"processed_by": self.processed_by,
-				"processed_on": self.processed_on
-			})
+				"processed_by": frappe.session.user,
+				"processed_on": now_datetime()
+			}, update_modified=False)
 			self.notify_employee_rejected()
 
 	def cancel_leave_application(self):
@@ -150,10 +156,13 @@ class LeaveWithdrawalRequest(Document):
 				frappe.log_error(f"SQL cancel also failed for leave application: {str(sql_e)}")
 				frappe.throw(_("Failed to cancel Leave Application. Please contact administrator."))
 
-		# Always update workflow_state to "Cancelled" so the indicator shows correctly
+		# Always update workflow_state and status to "Cancelled" so the indicator shows correctly
 		# (the workflow overrides the indicator based on workflow_state, not docstatus)
 		try:
-			frappe.db.set_value("Leave Application", self.leave_application, "workflow_state", "Cancelled")
+			frappe.db.set_value("Leave Application", self.leave_application, {
+				"workflow_state": "Cancelled",
+				"status": "Cancelled"
+			}, update_modified=False)
 			frappe.db.commit()
 		except Exception:
 			pass
