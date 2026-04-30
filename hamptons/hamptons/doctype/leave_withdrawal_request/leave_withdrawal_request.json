@@ -120,6 +120,7 @@
    "label": "Status"
   },
   {
+   "allow_on_submit": 1,
    "default": "Pending",
    "fieldname": "status",
    "fieldtype": "Select",
@@ -134,6 +135,7 @@
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "processed_by",
    "fieldtype": "Link",
    "label": "Processed By",
@@ -141,12 +143,14 @@
    "read_only": 1
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "processed_on",
    "fieldtype": "Datetime",
    "label": "Processed On",
    "read_only": 1
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "hr_remarks",
    "fieldtype": "Small Text",
    "label": "HR Remarks"
