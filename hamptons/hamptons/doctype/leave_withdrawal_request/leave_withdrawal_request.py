@@ -56,20 +56,18 @@ class LeaveWithdrawalRequest(Document):
 			self._process_decision()
 
 	def _process_decision(self):
-		"""Cancel leave application on Approved, notify employee on either decision."""
+		"""Cancel leave application on Approved."""
 		if self.status == "Approved":
 			self.cancel_leave_application()
 			frappe.db.set_value("Leave Withdrawal Request", self.name, {
 				"processed_by": frappe.session.user,
 				"processed_on": now_datetime()
 			}, update_modified=False)
-			self.notify_employee_approved()
 		elif self.status == "Rejected":
 			frappe.db.set_value("Leave Withdrawal Request", self.name, {
 				"processed_by": frappe.session.user,
 				"processed_on": now_datetime()
 			}, update_modified=False)
-			self.notify_employee_rejected()
 
 	def cancel_leave_application(self):
 		"""Cancel the linked leave application and its related attendance records forcefully"""
@@ -170,8 +168,7 @@ class LeaveWithdrawalRequest(Document):
 		frappe.msgprint(_("Leave Application {0} has been cancelled").format(self.leave_application))
 
 	def after_insert(self):
-		"""Notify HOD (line manager) about the new withdrawal request pending review"""
-		self.notify_hod()
+		pass
 
 	def get_hod_recipients(self):
 		"""Get HOD email addresses - reports_to first, fallback to department HOD role."""

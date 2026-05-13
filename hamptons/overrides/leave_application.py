@@ -251,46 +251,255 @@ def _get_hod_recipients(doc):
 	return list(set(recipients))
 
 
+def _build_email(header_color, header_title, header_subtitle, body_html, footer_note=""):
+	"""Wrap content in a professional Hamptons-branded email shell."""
+	return f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background-color:#f0f2f5;font-family:'Segoe UI',Arial,Helvetica,sans-serif;">
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%"
+       style="background-color:#f0f2f5;">
+  <tr>
+    <td style="padding:40px 20px;">
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0"
+             style="max-width:600px;width:100%;margin:0 auto;background-color:#ffffff;
+                    border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.10);">
+
+        <!-- Header -->
+        <tr>
+          <td style="background-color:{header_color};padding:32px 40px;
+                     border-radius:10px 10px 0 0;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+              <tr>
+                <td>
+                  <span style="color:#ffffff;font-size:20px;font-weight:700;
+                               letter-spacing:1px;text-transform:uppercase;">
+                    Hamptons
+                  </span>
+                  <span style="color:rgba(255,255,255,0.55);font-size:13px;
+                               margin-left:10px;font-weight:400;">
+                    Human Resources
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding-top:18px;">
+                  <p style="margin:0;color:#ffffff;font-size:22px;font-weight:600;
+                             line-height:1.3;">
+                    {header_title}
+                  </p>
+                  <p style="margin:6px 0 0;color:rgba(255,255,255,0.75);font-size:14px;">
+                    {header_subtitle}
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td style="padding:36px 40px;">
+            {body_html}
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="padding:20px 40px 28px;border-top:1px solid #e8ecf0;
+                     background-color:#f8f9fa;border-radius:0 0 10px 10px;">
+            <p style="margin:0;color:#9aa5b4;font-size:12px;line-height:1.6;text-align:center;">
+              This is an automated notification from <strong>Hamptons HRMS</strong>.<br>
+              Please do not reply directly to this email.
+              {'<br>' + footer_note if footer_note else ''}
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>"""
+
+
+def _leave_details_table(context):
+	"""Return a styled details table for leave application emails."""
+	return f"""
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%"
+       style="border-collapse:collapse;margin:24px 0;border-radius:6px;overflow:hidden;
+              border:1px solid #e2e8f0;">
+  <thead>
+    <tr style="background-color:#f7f8fa;">
+      <td colspan="2" style="padding:12px 16px;font-size:11px;font-weight:700;
+                             color:#6b7280;text-transform:uppercase;letter-spacing:0.8px;
+                             border-bottom:1px solid #e2e8f0;">
+        Leave Details
+      </td>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="padding:12px 16px;font-size:14px;color:#6b7280;width:40%;
+                 border-bottom:1px solid #f0f2f5;white-space:nowrap;">Leave Type</td>
+      <td style="padding:12px 16px;font-size:14px;color:#1a202c;font-weight:600;
+                 border-bottom:1px solid #f0f2f5;">{context['leave_type']}</td>
+    </tr>
+    <tr style="background-color:#fafbfc;">
+      <td style="padding:12px 16px;font-size:14px;color:#6b7280;
+                 border-bottom:1px solid #f0f2f5;white-space:nowrap;">From Date</td>
+      <td style="padding:12px 16px;font-size:14px;color:#1a202c;
+                 border-bottom:1px solid #f0f2f5;">{context['from_date']}</td>
+    </tr>
+    <tr>
+      <td style="padding:12px 16px;font-size:14px;color:#6b7280;
+                 border-bottom:1px solid #f0f2f5;white-space:nowrap;">To Date</td>
+      <td style="padding:12px 16px;font-size:14px;color:#1a202c;
+                 border-bottom:1px solid #f0f2f5;">{context['to_date']}</td>
+    </tr>
+    <tr style="background-color:#fafbfc;">
+      <td style="padding:12px 16px;font-size:14px;color:#6b7280;
+                 border-bottom:1px solid #f0f2f5;white-space:nowrap;">Duration</td>
+      <td style="padding:12px 16px;font-size:14px;color:#1a202c;
+                 border-bottom:1px solid #f0f2f5;">
+        <strong>{context['total_days']}</strong> day(s)
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:12px 16px;font-size:14px;color:#6b7280;white-space:nowrap;
+                 vertical-align:top;">Reason</td>
+      <td style="padding:12px 16px;font-size:14px;color:#1a202c;">{context['reason']}</td>
+    </tr>
+  </tbody>
+</table>"""
+
+
+def _cta_button(url, label, color):
+	"""Return a styled CTA button."""
+	return f"""
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-top:8px;">
+  <tr>
+    <td style="border-radius:6px;background-color:{color};">
+      <a href="{url}"
+         style="display:inline-block;padding:13px 28px;font-size:15px;font-weight:600;
+                color:#ffffff;text-decoration:none;letter-spacing:0.3px;">
+        {label}
+      </a>
+    </td>
+  </tr>
+</table>"""
+
+
 def _get_notification_content(notification_type, context):
-	"""Get email subject and message based on notification type."""
+	"""Return (subject, html_message) for the given notification type."""
 	leave_url = context.get("leave_url", "#")
 	emp_name = context["employee_name"]
 	emp_id = context["employee_id"]
+	details = _leave_details_table(context)
 
-	table = f"""
-		<table style="border-collapse: collapse; width: 100%; max-width: 500px;">
-			<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Leave Type:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{context['leave_type']}</td></tr>
-			<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>From Date:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{context['from_date']}</td></tr>
-			<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>To Date:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{context['to_date']}</td></tr>
-			<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Total Days:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{context['total_days']}</td></tr>
-			<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Reason:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{context['reason']}</td></tr>
-		</table>"""
+	if notification_type == "pending_approval":
+		subject = _("Leave Request Pending Your Approval — {0}").format(emp_name)
+		body = f"""
+<p style="margin:0 0 6px;font-size:16px;color:#374151;font-weight:600;">
+  Dear HOD,
+</p>
+<p style="margin:0 0 20px;font-size:14px;color:#4b5563;line-height:1.7;">
+  <strong>{emp_name}</strong>
+  <span style="color:#6b7280;font-size:13px;"> ({emp_id})</span>
+  has submitted a leave application that requires your review and approval.
+</p>
+{details}
+<p style="margin:20px 0 16px;font-size:14px;color:#4b5563;line-height:1.7;">
+  Please log in to Hamptons HRMS to review the request and take action.
+</p>
+{_cta_button(leave_url, "Review Leave Application", "#1d4ed8")}"""
+		message = _build_email(
+			header_color="#1e3a5f",
+			header_title="Leave Application — Action Required",
+			header_subtitle=f"Submitted by {emp_name} ({emp_id})",
+			body_html=body
+		)
 
-	btn_green = f'<p style="margin-top: 20px;"><a href="{leave_url}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Leave Application</a></p>'
-	btn_red = f'<p style="margin-top: 20px;"><a href="{leave_url}" style="background-color: #f44336; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Leave Application</a></p>'
+	elif notification_type == "approved":
+		subject = _("Your Leave Application Has Been Approved")
+		body = f"""
+<p style="margin:0 0 6px;font-size:16px;color:#374151;font-weight:600;">
+  Dear {emp_name},
+</p>
+<p style="margin:0 0 20px;font-size:14px;color:#4b5563;line-height:1.7;">
+  We are pleased to inform you that your leave application has been
+  <span style="color:#16a34a;font-weight:700;">approved</span>.
+</p>
+<div style="background-color:#f0fdf4;border-left:4px solid #16a34a;
+            padding:14px 18px;border-radius:0 6px 6px 0;margin-bottom:4px;">
+  <p style="margin:0;font-size:13px;color:#166534;font-weight:600;">
+    ✓ &nbsp;Leave Approved
+  </p>
+</div>
+{details}
+<p style="margin:20px 0 16px;font-size:14px;color:#4b5563;line-height:1.7;">
+  Your leave has been recorded in the system. If you have any questions,
+  please contact your HR department.
+</p>
+{_cta_button(leave_url, "View Leave Application", "#16a34a")}"""
+		message = _build_email(
+			header_color="#166534",
+			header_title="Leave Application Approved",
+			header_subtitle="Your leave request has been approved",
+			body_html=body
+		)
 
-	templates = {
-		"pending_approval": (
-			_("Leave Application Pending Your Approval - {0}").format(emp_name),
-			f"<h3>Leave Application Pending Approval</h3><p>Dear HOD,</p><p><strong>{emp_name}</strong> ({emp_id}) has submitted a leave application that requires your approval.</p>{table}{btn_green}"
-		),
-		"approved": (
-			_("Your Leave Application - Approved"),
-			f"<h3>Leave Application Approved</h3><p>Dear {emp_name},</p><p>Your leave application has been <strong style='color: green;'>approved</strong>.</p>{table}{btn_green}"
-		),
-		"rejected": (
-			_("Your Leave Application - Rejected"),
-			f"<h3>Leave Application Rejected</h3><p>Dear {emp_name},</p><p>Your leave application has been <strong style='color: red;'>rejected</strong>.</p>{table}<p>Please contact your HOD for more information.</p>{btn_red}"
-		),
-	}
+	elif notification_type == "rejected":
+		subject = _("Your Leave Application Has Been Rejected")
+		body = f"""
+<p style="margin:0 0 6px;font-size:16px;color:#374151;font-weight:600;">
+  Dear {emp_name},
+</p>
+<p style="margin:0 0 20px;font-size:14px;color:#4b5563;line-height:1.7;">
+  We regret to inform you that your leave application has been
+  <span style="color:#dc2626;font-weight:700;">rejected</span>.
+</p>
+<div style="background-color:#fef2f2;border-left:4px solid #dc2626;
+            padding:14px 18px;border-radius:0 6px 6px 0;margin-bottom:4px;">
+  <p style="margin:0;font-size:13px;color:#991b1b;font-weight:600;">
+    ✗ &nbsp;Leave Not Approved
+  </p>
+</div>
+{details}
+<p style="margin:20px 0 16px;font-size:14px;color:#4b5563;line-height:1.7;">
+  For further information or to discuss this decision, please contact
+  your line manager or HR department.
+</p>
+{_cta_button(leave_url, "View Leave Application", "#dc2626")}"""
+		message = _build_email(
+			header_color="#991b1b",
+			header_title="Leave Application Rejected",
+			header_subtitle="Your leave request could not be approved",
+			body_html=body
+		)
 
-	if notification_type in templates:
-		return templates[notification_type]
+	else:
+		subject = _("Leave Application Update — {0}").format(emp_name)
+		body = f"""
+<p style="margin:0 0 16px;font-size:14px;color:#4b5563;line-height:1.7;">
+  Your leave application status has been updated to
+  <strong>{context['workflow_state']}</strong>.
+</p>
+{details}
+{_cta_button(leave_url, "View Leave Application", "#1d4ed8")}"""
+		message = _build_email(
+			header_color="#1e3a5f",
+			header_title="Leave Application Update",
+			header_subtitle=f"Status: {context['workflow_state']}",
+			body_html=body
+		)
 
-	return (
-		_("Leave Application Update - {0}").format(emp_name),
-		f"<h3>Leave Application Update</h3><p>Leave application for <strong>{emp_name}</strong> has been updated. Current Status: {context['workflow_state']}</p><p><a href='{leave_url}'>View Leave Application</a></p>"
-	)
+	return subject, message
 
 
 def _log_workflow_action(doc, from_state, to_state):

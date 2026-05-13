@@ -109,14 +109,7 @@ def send_visa_expiry_alerts():
 	<p style="margin-top: 15px; color: #666;">This is an automated alert from Hamptons HRMS.</p>
 	"""
 
-	from hamptons.utils.email_utils import send_email_if_enabled
-	send_email_if_enabled(
-		recipients=recipients,
-		subject=subject,
-		message=message,
-		now=True
-	)
-
+	# Visa expiry email notifications are disabled
 	frappe.logger().info(
-		f"Sent visa expiry alert for {len(expiring)} family members to {len(recipients)} recipients"
+		f"Visa expiry alert skipped for {len(expiring)} family members (email notifications disabled)"
 	)

@@ -20,52 +20,8 @@ def send_work_anniversary_reminders():
 	sender = frappe.db.get_single_value("HR Settings", "sender_email")
 	employees_joined_today = get_active_employees_with_anniversary_today()
 
-	if not employees_joined_today:
-		return
-
-	message = _("A friendly reminder of an important date for our team.")
-	message += "<br>"
-	message += _("Everyone, let's congratulate them on their work anniversary!")
-
-	for company, anniversary_persons in employees_joined_today.items():
-		employee_emails = get_all_employee_emails(company)
-		anniversary_person_emails = [get_employee_email(doc) for doc in anniversary_persons]
-		recipients = list(set(employee_emails) - set(anniversary_person_emails))
-
-		if not recipients:
-			continue
-
-		reminder_text = get_work_anniversary_reminder_text(anniversary_persons)
-		frappe.sendmail(
-			sender=sender,
-			recipients=recipients,
-			subject=_("Work Anniversary Reminder"),
-			template="anniversary_reminder",
-			args=dict(
-				reminder_text=reminder_text,
-				anniversary_persons=anniversary_persons,
-				message=message,
-			),
-			header=_("Work Anniversary Reminder"),
-		)
-
-		if len(anniversary_persons) > 1:
-			for person in anniversary_persons:
-				person_email = person["user_id"] or person["personal_email"] or person["company_email"]
-				others = [d for d in anniversary_persons if d != person]
-				reminder_text = get_work_anniversary_reminder_text(others)
-				frappe.sendmail(
-					sender=sender,
-					recipients=person_email,
-					subject=_("Work Anniversary Reminder"),
-					template="anniversary_reminder",
-					args=dict(
-						reminder_text=reminder_text,
-						anniversary_persons=others,
-						message=message,
-					),
-					header=_("Work Anniversary Reminder"),
-				)
+	# Work anniversary email reminders are disabled
+	return
 
 
 def get_active_employees_with_anniversary_today():

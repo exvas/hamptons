@@ -166,53 +166,13 @@ def update_linked_attendance_regularization(doc, status):
 
 
 def _send_notification_to_hod(doc, context, notification_type):
-	"""Send notification to HOD (reports_to or department HOD)."""
-	from hamptons.utils.email_utils import is_outgoing_email_enabled
-	if not is_outgoing_email_enabled():
-		return
-
-	recipients = _get_hod_recipients(doc)
-	if not recipients:
-		return
-
-	subject, message = _get_notification_content(notification_type, context)
-
-	for recipient in recipients:
-		try:
-			frappe.sendmail(
-				recipients=[recipient],
-				subject=subject,
-				message=message,
-				reference_doctype="Attendance Request",
-				reference_name=doc.name,
-				now=True
-			)
-		except Exception as e:
-			frappe.logger().error(f"Attendance Request notification failed for {recipient}: {str(e)}")
+	"""Email notifications for Attendance Request are disabled."""
+	return
 
 
 def _send_notification_to_employee(email, context, notification_type):
-	"""Send notification to the employee."""
-	from hamptons.utils.email_utils import is_outgoing_email_enabled
-	if not is_outgoing_email_enabled():
-		return
-
-	if not email:
-		return
-
-	subject, message = _get_notification_content(notification_type, context)
-
-	try:
-		frappe.sendmail(
-			recipients=[email],
-			subject=subject,
-			message=message,
-			reference_doctype="Attendance Request",
-			reference_name=context.get("request_url", "").split("/")[-1] if context.get("request_url") else None,
-			now=True
-		)
-	except Exception as e:
-		frappe.logger().error(f"Attendance Request notification failed for {email}: {str(e)}")
+	"""Email notifications for Attendance Request are disabled."""
+	return
 
 
 def _get_hod_recipients(doc):

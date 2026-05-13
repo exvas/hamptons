@@ -105,13 +105,8 @@ def send_ar_notification_email(ar_name, employee, employee_name, posting_date, s
 		status: AR status
 		reason: Human-readable reason for regularization
 	"""
-	# Check if outgoing email is enabled BEFORE doing anything else
-	from hamptons.utils.email_utils import is_outgoing_email_enabled
-	if not is_outgoing_email_enabled():
-		frappe.logger().info(
-			f"Skipping AR email for {ar_name}: No enabled outgoing email account"
-		)
-		return
+	# Email notifications for Attendance Regularization are disabled
+	return
 
 	# Verify the AR record actually exists in database
 	if not frappe.db.exists("Attendance Regularization", ar_name):
