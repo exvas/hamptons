@@ -56,18 +56,20 @@ class LeaveWithdrawalRequest(Document):
 			self._process_decision()
 
 	def _process_decision(self):
-		"""Cancel leave application on Approved."""
+		"""Cancel leave application on Approved, notify employee on either decision."""
 		if self.status == "Approved":
 			self.cancel_leave_application()
 			frappe.db.set_value("Leave Withdrawal Request", self.name, {
 				"processed_by": frappe.session.user,
 				"processed_on": now_datetime()
 			}, update_modified=False)
+			self.notify_employee_approved()
 		elif self.status == "Rejected":
 			frappe.db.set_value("Leave Withdrawal Request", self.name, {
 				"processed_by": frappe.session.user,
 				"processed_on": now_datetime()
 			}, update_modified=False)
+			self.notify_employee_rejected()
 
 	def cancel_leave_application(self):
 		"""Cancel the linked leave application and its related attendance records forcefully"""
@@ -168,7 +170,8 @@ class LeaveWithdrawalRequest(Document):
 		frappe.msgprint(_("Leave Application {0} has been cancelled").format(self.leave_application))
 
 	def after_insert(self):
-		pass
+		"""Notify HOD about new withdrawal request."""
+		self.notify_hod()
 
 	def get_hod_recipients(self):
 		"""Get HOD email addresses - reports_to first, fallback to department HOD role."""
@@ -197,140 +200,273 @@ class LeaveWithdrawalRequest(Document):
 		return list(set(recipients))
 
 	def notify_hod(self):
-		"""Send notification to line manager (HOD) about leave withdrawal request."""
-		recipients = self.get_hod_recipients()
-		if not recipients:
-			return
-
-		subject = _("Leave Withdrawal Request - {0}").format(self.employee_name)
-		message = _("""
-			<p>Employee <b>{employee_name}</b> ({employee}) has requested to withdraw their leave.</p>
-			<p><b>Leave Details:</b></p>
-			<ul>
-				<li>Leave Type: {leave_type}</li>
-				<li>From: {from_date}</li>
-				<li>To: {to_date}</li>
-				<li>Days: {total_leave_days}</li>
-			</ul>
-			<p><b>Reason for Withdrawal:</b></p>
-			<p>{reason}</p>
-			<p>Please review and Approve or Reject this request.</p>
-			<p><a href="/app/leave-withdrawal-request/{name}">View Withdrawal Request</a></p>
-		""").format(
-			employee_name=self.employee_name,
-			employee=self.employee,
-			leave_type=self.leave_type,
-			from_date=self.from_date,
-			to_date=self.to_date,
-			total_leave_days=self.total_leave_days,
-			reason=self.reason,
-			name=self.name
-		)
-
-		from hamptons.utils.email_utils import is_outgoing_email_enabled
-		if is_outgoing_email_enabled():
-			for recipient in recipients:
-				try:
-					frappe.sendmail(
-						recipients=[recipient],
-						subject=subject,
-						message=message,
-						reference_doctype=self.doctype,
-						reference_name=self.name,
-						now=True
-					)
-				except Exception:
-					pass
-
-		for recipient in recipients:
-			try:
-				notification = frappe.new_doc("Notification Log")
-				notification.subject = subject
-				notification.for_user = recipient
-				notification.type = "Alert"
-				notification.document_type = self.doctype
-				notification.document_name = self.name
-				notification.email_content = message
-				notification.insert(ignore_permissions=True)
-			except Exception:
-				pass
-
-	def notify_employee_approved(self):
-		"""Notify employee that withdrawal is approved"""
-		# Check if outgoing email is enabled
+		"""Send professional email to HOD about new withdrawal request."""
 		from hamptons.utils.email_utils import is_outgoing_email_enabled
 		if not is_outgoing_email_enabled():
 			return
 
-		employee_user = frappe.db.get_value("Employee", self.employee, "user_id")
-		if not employee_user:
+		recipients = self.get_hod_recipients()
+		if not recipients:
 			return
 
-		subject = _("Leave Withdrawal Approved")
-		message = _("""
-			<p>Your leave withdrawal request has been <b style="color:green;">Approved</b>.</p>
-			<p><b>Leave Details:</b></p>
-			<ul>
-				<li>Leave Type: {leave_type}</li>
-				<li>From: {from_date}</li>
-				<li>To: {to_date}</li>
-			</ul>
-			<p>The leave application has been cancelled and leave balance restored.</p>
-		""").format(
-			leave_type=self.leave_type,
-			from_date=self.from_date,
-			to_date=self.to_date
+		lwr_url = frappe.utils.get_url_to_form(self.doctype, self.name)
+		subject = _("Leave Withdrawal Request — Action Required — {0}").format(self.employee_name)
+		message = _build_lwr_email(
+			header_color="#1e3a5f",
+			header_title="Leave Withdrawal Request — Action Required",
+			header_subtitle=f"Submitted by {self.employee_name} ({self.employee})",
+			body_html=f"""
+<p style="margin:0 0 6px;font-size:16px;color:#374151;font-weight:600;">Dear HOD,</p>
+<p style="margin:0 0 20px;font-size:14px;color:#4b5563;line-height:1.7;">
+  <strong>{self.employee_name}</strong>
+  <span style="color:#6b7280;font-size:13px;"> ({self.employee})</span>
+  has submitted a request to withdraw their approved leave.
+  Please review and take action.
+</p>
+{_lwr_details_table(self)}
+<p style="margin:20px 0 16px;font-size:14px;color:#4b5563;line-height:1.7;">
+  Please log in to Hamptons HRMS to approve or reject this request.
+</p>
+{_lwr_cta_button(lwr_url, "Review Withdrawal Request", "#1d4ed8")}"""
+		)
+
+		for recipient in recipients:
+			try:
+				frappe.sendmail(
+					recipients=[recipient],
+					subject=subject,
+					message=message,
+					reference_doctype=self.doctype,
+					reference_name=self.name,
+					now=True
+				)
+			except Exception:
+				pass
+
+	def notify_employee_approved(self):
+		"""Notify employee with professional email that withdrawal is approved."""
+		from hamptons.utils.email_utils import is_outgoing_email_enabled
+		if not is_outgoing_email_enabled():
+			return
+
+		employee_doc = frappe.get_doc("Employee", self.employee)
+		employee_email = employee_doc.prefered_email or employee_doc.company_email or employee_doc.personal_email
+		if not employee_email and employee_doc.user_id:
+			employee_email = frappe.db.get_value("User", employee_doc.user_id, "email")
+		if not employee_email:
+			return
+
+		lwr_url = frappe.utils.get_url_to_form(self.doctype, self.name)
+		subject = _("Your Leave Withdrawal Request Has Been Approved")
+		message = _build_lwr_email(
+			header_color="#166534",
+			header_title="Leave Withdrawal Approved",
+			header_subtitle="Your withdrawal request has been approved",
+			body_html=f"""
+<p style="margin:0 0 6px;font-size:16px;color:#374151;font-weight:600;">
+  Dear {self.employee_name},
+</p>
+<p style="margin:0 0 20px;font-size:14px;color:#4b5563;line-height:1.7;">
+  Your leave withdrawal request has been
+  <span style="color:#16a34a;font-weight:700;">approved</span>.
+</p>
+<div style="background-color:#f0fdf4;border-left:4px solid #16a34a;
+            padding:14px 18px;border-radius:0 6px 6px 0;margin-bottom:4px;">
+  <p style="margin:0;font-size:13px;color:#166534;font-weight:600;">
+    ✓ &nbsp;Leave Cancelled — Balance Restored
+  </p>
+</div>
+{_lwr_details_table(self)}
+<p style="margin:20px 0 16px;font-size:14px;color:#4b5563;line-height:1.7;">
+  Your leave application has been cancelled and your leave balance has been restored.
+  If you have any questions, please contact your HR department.
+</p>
+{_lwr_cta_button(lwr_url, "View Withdrawal Request", "#16a34a")}"""
 		)
 
 		try:
 			frappe.sendmail(
-				recipients=[employee_user],
+				recipients=[employee_email],
 				subject=subject,
 				message=message,
 				reference_doctype=self.doctype,
-				reference_name=self.name
+				reference_name=self.name,
+				now=True
 			)
 		except Exception:
 			pass
 
 	def notify_employee_rejected(self):
-		"""Notify employee that withdrawal is rejected"""
-		# Check if outgoing email is enabled
+		"""Notify employee with professional email that withdrawal is rejected."""
 		from hamptons.utils.email_utils import is_outgoing_email_enabled
 		if not is_outgoing_email_enabled():
 			return
 
-		employee_user = frappe.db.get_value("Employee", self.employee, "user_id")
-		if not employee_user:
+		employee_doc = frappe.get_doc("Employee", self.employee)
+		employee_email = employee_doc.prefered_email or employee_doc.company_email or employee_doc.personal_email
+		if not employee_email and employee_doc.user_id:
+			employee_email = frappe.db.get_value("User", employee_doc.user_id, "email")
+		if not employee_email:
 			return
 
-		subject = _("Leave Withdrawal Rejected")
-		message = _("""
-			<p>Your leave withdrawal request has been <b style="color:red;">Rejected</b>.</p>
-			<p><b>Leave Details:</b></p>
-			<ul>
-				<li>Leave Type: {leave_type}</li>
-				<li>From: {from_date}</li>
-				<li>To: {to_date}</li>
-			</ul>
-			<p><b>HR Remarks:</b> {remarks}</p>
-		""").format(
-			leave_type=self.leave_type,
-			from_date=self.from_date,
-			to_date=self.to_date,
-			remarks=self.hr_remarks or "No remarks"
+		lwr_url = frappe.utils.get_url_to_form(self.doctype, self.name)
+		remarks = self.hr_remarks or "No remarks provided."
+		subject = _("Your Leave Withdrawal Request Has Been Rejected")
+		message = _build_lwr_email(
+			header_color="#991b1b",
+			header_title="Leave Withdrawal Rejected",
+			header_subtitle="Your withdrawal request could not be approved",
+			body_html=f"""
+<p style="margin:0 0 6px;font-size:16px;color:#374151;font-weight:600;">
+  Dear {self.employee_name},
+</p>
+<p style="margin:0 0 20px;font-size:14px;color:#4b5563;line-height:1.7;">
+  We regret to inform you that your leave withdrawal request has been
+  <span style="color:#dc2626;font-weight:700;">rejected</span>.
+</p>
+<div style="background-color:#fef2f2;border-left:4px solid #dc2626;
+            padding:14px 18px;border-radius:0 6px 6px 0;margin-bottom:4px;">
+  <p style="margin:0;font-size:13px;color:#991b1b;font-weight:600;">
+    ✗ &nbsp;Withdrawal Not Approved — Leave Remains Active
+  </p>
+</div>
+{_lwr_details_table(self)}
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%"
+       style="border-collapse:collapse;margin:16px 0;border-radius:6px;overflow:hidden;
+              border:1px solid #e2e8f0;">
+  <tr style="background-color:#f7f8fa;">
+    <td style="padding:12px 16px;font-size:11px;font-weight:700;color:#6b7280;
+               text-transform:uppercase;letter-spacing:0.8px;border-bottom:1px solid #e2e8f0;">
+      Remarks
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:12px 16px;font-size:14px;color:#1a202c;line-height:1.6;">
+      {remarks}
+    </td>
+  </tr>
+</table>
+<p style="margin:20px 0 16px;font-size:14px;color:#4b5563;line-height:1.7;">
+  Your original leave application remains active. For further information,
+  please contact your line manager or HR department.
+</p>
+{_lwr_cta_button(lwr_url, "View Withdrawal Request", "#dc2626")}"""
 		)
 
 		try:
 			frappe.sendmail(
-				recipients=[employee_user],
+				recipients=[employee_email],
 				subject=subject,
 				message=message,
 				reference_doctype=self.doctype,
-				reference_name=self.name
+				reference_name=self.name,
+				now=True
 			)
 		except Exception:
 			pass
+
+
+def _build_lwr_email(header_color, header_title, header_subtitle, body_html):
+	return f"""
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f0f2f5;font-family:'Segoe UI',Arial,Helvetica,sans-serif;">
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%"
+       style="background-color:#f0f2f5;">
+  <tr>
+    <td style="padding:40px 20px;">
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0"
+             style="max-width:600px;width:100%;margin:0 auto;background-color:#ffffff;
+                    border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.10);">
+        <tr>
+          <td style="background-color:{header_color};padding:32px 40px;border-radius:10px 10px 0 0;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+              <tr>
+                <td>
+                  <span style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">Hamptons</span>
+                  <span style="color:rgba(255,255,255,0.55);font-size:13px;margin-left:10px;">Human Resources</span>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding-top:18px;">
+                  <p style="margin:0;color:#ffffff;font-size:22px;font-weight:600;line-height:1.3;">{header_title}</p>
+                  <p style="margin:6px 0 0;color:rgba(255,255,255,0.75);font-size:14px;">{header_subtitle}</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr><td style="padding:36px 40px;">{body_html}</td></tr>
+        <tr>
+          <td style="padding:20px 40px 28px;border-top:1px solid #e8ecf0;background-color:#f8f9fa;border-radius:0 0 10px 10px;">
+            <p style="margin:0;color:#9aa5b4;font-size:12px;line-height:1.6;text-align:center;">
+              This is an automated notification from <strong>Hamptons HRMS</strong>.<br>
+              Please do not reply directly to this email.
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>"""
+
+
+def _lwr_details_table(doc):
+	from_date = frappe.format(doc.from_date, {"fieldtype": "Date"}) if doc.from_date else "-"
+	to_date = frappe.format(doc.to_date, {"fieldtype": "Date"}) if doc.to_date else "-"
+	return f"""
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%"
+       style="border-collapse:collapse;margin:24px 0;border-radius:6px;overflow:hidden;border:1px solid #e2e8f0;">
+  <thead>
+    <tr style="background-color:#f7f8fa;">
+      <td colspan="2" style="padding:12px 16px;font-size:11px;font-weight:700;color:#6b7280;
+                             text-transform:uppercase;letter-spacing:0.8px;border-bottom:1px solid #e2e8f0;">
+        Leave Details
+      </td>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="padding:12px 16px;font-size:14px;color:#6b7280;width:40%;border-bottom:1px solid #f0f2f5;white-space:nowrap;">Leave Type</td>
+      <td style="padding:12px 16px;font-size:14px;color:#1a202c;font-weight:600;border-bottom:1px solid #f0f2f5;">{doc.leave_type or "-"}</td>
+    </tr>
+    <tr style="background-color:#fafbfc;">
+      <td style="padding:12px 16px;font-size:14px;color:#6b7280;border-bottom:1px solid #f0f2f5;white-space:nowrap;">From Date</td>
+      <td style="padding:12px 16px;font-size:14px;color:#1a202c;border-bottom:1px solid #f0f2f5;">{from_date}</td>
+    </tr>
+    <tr>
+      <td style="padding:12px 16px;font-size:14px;color:#6b7280;border-bottom:1px solid #f0f2f5;white-space:nowrap;">To Date</td>
+      <td style="padding:12px 16px;font-size:14px;color:#1a202c;border-bottom:1px solid #f0f2f5;">{to_date}</td>
+    </tr>
+    <tr style="background-color:#fafbfc;">
+      <td style="padding:12px 16px;font-size:14px;color:#6b7280;border-bottom:1px solid #f0f2f5;white-space:nowrap;">Duration</td>
+      <td style="padding:12px 16px;font-size:14px;color:#1a202c;border-bottom:1px solid #f0f2f5;">
+        <strong>{doc.total_leave_days or "-"}</strong> day(s)
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:12px 16px;font-size:14px;color:#6b7280;white-space:nowrap;vertical-align:top;">Withdrawal Reason</td>
+      <td style="padding:12px 16px;font-size:14px;color:#1a202c;">{doc.reason or "-"}</td>
+    </tr>
+  </tbody>
+</table>"""
+
+
+def _lwr_cta_button(url, label, color):
+	return f"""
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-top:8px;">
+  <tr>
+    <td style="border-radius:6px;background-color:{color};">
+      <a href="{url}" style="display:inline-block;padding:13px 28px;font-size:15px;font-weight:600;
+                             color:#ffffff;text-decoration:none;letter-spacing:0.3px;">
+        {label}
+      </a>
+    </td>
+  </tr>
+</table>"""
 
 
 @frappe.whitelist()
