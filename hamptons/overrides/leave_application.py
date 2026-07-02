@@ -15,6 +15,20 @@ from hrms.hr.doctype.leave_application.leave_application import LeaveApplication
 
 
 @frappe.whitelist()
+def upload_attach_file(content, filename):
+	"""Upload a file for an Attach field and return its URL."""
+	import base64
+	file_doc = frappe.get_doc({
+		"doctype": "File",
+		"file_name": filename,
+		"content": base64.b64decode(content),
+		"is_private": 0,
+	})
+	file_doc.save(ignore_permissions=True)
+	return {"file_url": file_doc.file_url}
+
+
+@frappe.whitelist()
 def get_leave_balance_map_annual_only():
 	"""Mobile app leave balance map - only returns Annual Leave."""
 	from hrms.api import get_leave_balance_map
@@ -57,20 +71,12 @@ class HamptonsLeaveApplication(LeaveApplication):
 def validate_leave_application(doc, method=None):
 	"""
 	Validate Leave Application:
-	- Sick Leave requires attachment (medical certificate) on every save (except first save)
+	- Sick Leave requires medical certificate (custom Attach field or sidebar attachment)
 	- Annual Leave: show warning for short notice
 	"""
-	# Sick Leave: require medical certificate (Attach field or sidebar attachment)
+	# Sick Leave: require medical certificate on every save
 	if doc.leave_type == "Sick Leave":
-		has_attach_field = bool(doc.custom_medical_certificate)
-		has_sidebar_attachment = False
-		if not doc.is_new():
-			has_sidebar_attachment = bool(frappe.get_all("File", filters={
-				"attached_to_doctype": "Leave Application",
-				"attached_to_name": doc.name
-			}, limit=1))
-
-		if not has_attach_field and not has_sidebar_attachment:
+		if not _has_medical_certificate(doc):
 			frappe.throw(
 				_("Please upload a medical certificate before saving a Sick Leave application."),
 				title=_("Medical Certificate Required")
@@ -93,6 +99,25 @@ def validate_leave_application(doc, method=None):
 				title=_("Early Notice Recommended for Annual Leave"),
 				indicator="orange"
 			)
+
+
+def _has_medical_certificate(doc):
+	"""Return True if doc has a medical certificate via custom field or sidebar attachment."""
+	if doc.custom_medical_certificate:
+		return True
+	return bool(frappe.get_all("File", filters={
+		"attached_to_doctype": "Leave Application",
+		"attached_to_name": doc.name,
+	}, limit=1))
+
+
+def before_submit_leave_application(doc, method=None):
+	"""Enforce medical certificate requirement before Sick Leave is submitted."""
+	if doc.leave_type == "Sick Leave" and not _has_medical_certificate(doc):
+		frappe.throw(
+			_("A medical certificate is required before submitting a Sick Leave application."),
+			title=_("Medical Certificate Required")
+		)
 
 
 def on_submit_leave_application(doc, method=None):

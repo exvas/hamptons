@@ -162,6 +162,7 @@ doc_events = {
 	},
 	"Leave Application": {
 		"validate": "hamptons.overrides.leave_application.validate_leave_application",
+		"before_submit": "hamptons.overrides.leave_application.before_submit_leave_application",
 		"on_update": "hamptons.overrides.leave_application.on_update_leave_application",
 		"on_submit": "hamptons.overrides.leave_application.on_submit_leave_application",
 		"on_cancel": "hamptons.overrides.leave_application.on_cancel_leave_application"
