@@ -106,6 +106,13 @@ def check_leave_eligibility(employee_id, leave_type_name):
 				if leave_type.custom_gender_specific != employee.gender:
 					return False, f"Gender restriction: requires {leave_type.custom_gender_specific}, employee is {employee.gender}"
 
+		# Check nationality restriction (mirrors validate_leave_allocation in leave_allocation.py)
+		if hasattr(leave_type, "custom_nationality_specific") and leave_type.custom_nationality_specific:
+			if leave_type.custom_nationality_specific not in [None, '', 'All']:
+				emp_nationality = employee.get("custom_nationality")
+				if leave_type.custom_nationality_specific != emp_nationality:
+					return False, f"Nationality restriction: requires {leave_type.custom_nationality_specific}, employee is {emp_nationality or 'not set'}"
+
 		# Check religion restriction
 		if hasattr(leave_type, "custom_religion_specific") and leave_type.custom_religion_specific:
 			if leave_type.custom_religion_specific not in [None, '', 'All']:
