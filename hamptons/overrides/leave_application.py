@@ -10,7 +10,7 @@ Leave Application Override
 
 import frappe
 from frappe import _
-from frappe.utils import getdate, add_days, today, get_url_to_form
+from frappe.utils import getdate, add_days, today, get_url_to_form, flt
 from hrms.hr.doctype.leave_application.leave_application import LeaveApplication
 
 
@@ -82,6 +82,9 @@ def validate_leave_application(doc, method=None):
 				title=_("Medical Certificate Required")
 			)
 
+	# Balance already claimed by the employee's other pending applications is not available
+	validate_pending_leave_balance(doc)
+
 	# Show warning message for Annual Leave without 2 weeks advance notice
 	if doc.leave_type == "Annual Leave" and doc.from_date:
 		minimum_from_date = add_days(today(), 14)
@@ -99,6 +102,79 @@ def validate_leave_application(doc, method=None):
 				title=_("Early Notice Recommended for Annual Leave"),
 				indicator="orange"
 			)
+
+
+def validate_pending_leave_balance(doc):
+	"""
+	HRMS validates a new application against the balance of *submitted* leaves only, so an
+	employee can keep applying while earlier applications are still pending approval and end
+	up beyond the allocation (each application then fails at approval time with
+	"Insufficient leave balance"). Reserve the days of the employee's other Open applications
+	in the same allocation period while the employee is applying (draft saves only; approval
+	and rejection re-use the standard HRMS check).
+	"""
+	from hrms.hr.doctype.leave_application.leave_application import (
+		InsufficientLeaveBalanceError,
+		get_leave_balance_on,
+		is_lwp,
+	)
+
+	if doc.docstatus != 0 or doc.status != "Open":
+		return
+	if not (doc.employee and doc.leave_type and doc.from_date and doc.to_date):
+		return
+	if is_lwp(doc.leave_type):
+		return
+
+	alloc_on_from_date, alloc_on_to_date = doc.get_allocation_based_on_application_dates()
+	if not alloc_on_from_date or not alloc_on_to_date:
+		return  # no allocation: HRMS has already reported this
+
+	pending_days = flt(
+		frappe.db.sql(
+			"""
+			select ifnull(sum(total_leave_days), 0)
+			from `tabLeave Application`
+			where employee = %s and leave_type = %s
+				and docstatus = 0 and status = 'Open'
+				and name != %s
+				and from_date >= %s and to_date <= %s
+			""",
+			(doc.employee, doc.leave_type, doc.name or "", alloc_on_from_date.from_date, alloc_on_to_date.to_date),
+		)[0][0]
+	)
+	if not pending_days:
+		return
+
+	balance = get_leave_balance_on(
+		doc.employee,
+		doc.leave_type,
+		doc.from_date,
+		doc.to_date,
+		consider_all_leaves_in_the_allocation_period=True,
+		for_consumption=True,
+	)
+	leave_balance = flt(balance.get("leave_balance_for_consumption"))
+	available = leave_balance - pending_days
+
+	if flt(doc.total_leave_days) <= available:
+		return
+
+	msg = _(
+		"Insufficient leave balance for Leave Type {0}: balance is {1} day(s), {2} day(s) are already "
+		"pending approval in other application(s), so only {3} day(s) are available for this request of {4} day(s)."
+	).format(
+		frappe.bold(doc.leave_type),
+		frappe.bold(leave_balance),
+		frappe.bold(pending_days),
+		frappe.bold(max(available, 0)),
+		frappe.bold(doc.total_leave_days),
+	)
+
+	if frappe.db.get_value("Leave Type", doc.leave_type, "allow_negative"):
+		frappe.msgprint(msg, title=_("Warning"), indicator="orange")
+	else:
+		frappe.throw(msg, exc=InsufficientLeaveBalanceError, title=_("Insufficient Balance"))
 
 
 def _has_medical_certificate(doc):
