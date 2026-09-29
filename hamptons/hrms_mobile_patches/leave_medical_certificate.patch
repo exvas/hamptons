@@ -1,0 +1,91 @@
+diff --git a/frontend/src/components/FormView.vue b/frontend/src/components/FormView.vue
+index be4409336..6e7141d3f 100644
+--- a/frontend/src/components/FormView.vue
++++ b/frontend/src/components/FormView.vue
+@@ -119,6 +119,12 @@
+ 								<span class="text-gray-900 text-sm">{{ __("Uploading...") }} </span>
+ 							</div>
+ 
++							<p
++								v-if="showAttachmentView && requiredAttachmentMessage && !isFileUploading"
++								class="text-sm font-medium text-red-600 pt-4 -mb-2"
++							>
++								{{ requiredAttachmentMessage }}
++							</p>
+ 							<FileUploaderView
+ 								v-else-if="showAttachmentView && index === 0"
+ 								v-model="fileAttachments"
+@@ -158,6 +164,12 @@
+ 						<span class="text-gray-900 text-sm">{{ __("Uploading...") }} </span>
+ 					</div>
+ 
++					<p
++						v-if="showAttachmentView && requiredAttachmentMessage && !isFileUploading"
++						class="text-sm font-medium text-red-600 pt-4 -mb-2"
++					>
++						{{ requiredAttachmentMessage }}
++					</p>
+ 					<FileUploaderView
+ 						v-else-if="showAttachmentView"
+ 						v-model="fileAttachments"
+@@ -369,6 +381,12 @@ const props = defineProps({
+ 		required: false,
+ 		default: false,
+ 	},
++	// hamptons: when set, at least one attachment is mandatory and this text is shown
++	requiredAttachmentMessage: {
++		type: String,
++		required: false,
++		default: "",
++	},
+ 	showFormButton: {
+ 		type: Boolean,
+ 		required: false,
+@@ -629,6 +647,11 @@ function isFieldReadOnly(field) {
+ 
+ function handleDocInsert() {
+ 	if (!validateMandatoryFields()) return
++	// hamptons: required attachment (e.g. medical certificate)
++	if (props.requiredAttachmentMessage && !fileAttachments.value.length) {
++		formErrorMessage.value = props.requiredAttachmentMessage
++		return
++	}
+ 	docList.insert.submit(formModel.value)
+ }
+ 
+diff --git a/frontend/src/views/leave/Form.vue b/frontend/src/views/leave/Form.vue
+index 2e6b710a3..349b877c2 100644
+--- a/frontend/src/views/leave/Form.vue
++++ b/frontend/src/views/leave/Form.vue
+@@ -9,6 +9,7 @@
+ 				:fields="formFields.data"
+ 				:id="props.id"
+ 				:showAttachmentView="true"
++				:requiredAttachmentMessage="certificateMessage"
+ 				@validateForm="validateForm"
+ 			/>
+ 		</ion-content>
+@@ -18,7 +19,7 @@
+ <script setup>
+ import { IonPage, IonContent } from "@ionic/vue"
+ import { createResource } from "frappe-ui"
+-import { ref, watch, inject, nextTick } from "vue"
++import { ref, watch, inject, nextTick, computed } from "vue"
+ 
+ import FormView from "@/components/FormView.vue"
+ 
+@@ -56,6 +57,14 @@ if (props.id) {
+ 	)
+ }
+ 
++// hamptons: medical certificate is mandatory for these leave types (server enforces it too)
++const CERTIFICATE_LEAVE_TYPES = ["Sick Leave", "Caregiver leave"]
++const certificateMessage = computed(() =>
++	!props.id && CERTIFICATE_LEAVE_TYPES.includes(leaveApplication.value?.leave_type)
++		? "Medical certificate is mandatory: please attach it below before saving."
++		: ""
++)
++
+ // get form fields
+ const formFields = createResource({
+ 	url: "hrms.api.get_doctype_fields",
