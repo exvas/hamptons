@@ -74,11 +74,14 @@ def validate_leave_application(doc, method=None):
 	- Sick Leave requires medical certificate (custom Attach field or sidebar attachment)
 	- Annual Leave: show warning for short notice
 	"""
-	# Sick Leave: require medical certificate on every save
-	if doc.leave_type == "Sick Leave":
-		if not _has_medical_certificate(doc):
+	# Sick / Caregiver leave: require a medical certificate on every save.
+	# Exception: the HRMS mobile app inserts the application first and uploads the
+	# attachments right after, so a brand-new document created through frappe.client.insert
+	# is let through; the certificate is enforced again on every later save and on submit.
+	if requires_medical_certificate(doc.leave_type) and not _has_medical_certificate(doc):
+		if not (doc.is_new() and _is_mobile_app_insert()):
 			frappe.throw(
-				_("Please upload a medical certificate before saving a Sick Leave application."),
+				_("Please upload a medical certificate before saving a {0} application.").format(doc.leave_type),
 				title=_("Medical Certificate Required")
 			)
 
@@ -177,6 +180,33 @@ def validate_pending_leave_balance(doc):
 		frappe.throw(msg, exc=InsufficientLeaveBalanceError, title=_("Insufficient Balance"))
 
 
+LEAVE_TYPES_REQUIRING_CERTIFICATE = ("Sick Leave", "Caregiver leave")
+
+
+def requires_medical_certificate(leave_type):
+	return leave_type in LEAVE_TYPES_REQUIRING_CERTIFICATE
+
+
+def _is_mobile_app_insert():
+	"""True when the save comes from the HRMS mobile app (frappe.client.insert); the desk
+	form saves through frappe.desk.form.save.savedocs."""
+	return (frappe.local.form_dict or {}).get("cmd") == "frappe.client.insert"
+
+
+def on_file_attached(file_doc, method=None):
+	"""File after_insert: a file attached to a Sick / Caregiver leave application (e.g. from the
+	mobile app, which cannot fill Attach fields) becomes its medical certificate."""
+	if file_doc.attached_to_doctype != "Leave Application" or not file_doc.attached_to_name:
+		return
+	leave_type, certificate = frappe.db.get_value(
+		"Leave Application", file_doc.attached_to_name, ["leave_type", "custom_medical_certificate"]
+	) or (None, None)
+	if requires_medical_certificate(leave_type) and not certificate:
+		frappe.db.set_value(
+			"Leave Application", file_doc.attached_to_name, "custom_medical_certificate", file_doc.file_url
+		)
+
+
 def _has_medical_certificate(doc):
 	"""Return True if doc has a medical certificate via custom field or sidebar attachment."""
 	if doc.custom_medical_certificate:
@@ -188,10 +218,10 @@ def _has_medical_certificate(doc):
 
 
 def before_submit_leave_application(doc, method=None):
-	"""Enforce medical certificate requirement before Sick Leave is submitted."""
-	if doc.leave_type == "Sick Leave" and not _has_medical_certificate(doc):
+	"""Enforce medical certificate requirement before Sick / Caregiver leave is submitted (approved)."""
+	if requires_medical_certificate(doc.leave_type) and not _has_medical_certificate(doc):
 		frappe.throw(
-			_("A medical certificate is required before submitting a Sick Leave application."),
+			_("A medical certificate is required before a {0} application can be approved.").format(doc.leave_type),
 			title=_("Medical Certificate Required")
 		)
 

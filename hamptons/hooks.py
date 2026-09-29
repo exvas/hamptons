@@ -161,6 +161,9 @@ doc_events = {
 		"before_submit": "hamptons.overrides.leave_allocation.validate_leave_allocation",
 		"on_submit": "hamptons.overrides.leave_allocation.on_submit_leave_allocation"
 	},
+	"File": {
+		"after_insert": "hamptons.overrides.leave_application.on_file_attached"
+	},
 	"Leave Application": {
 		"validate": "hamptons.overrides.leave_application.validate_leave_application",
 		"before_submit": "hamptons.overrides.leave_application.before_submit_leave_application",
@@ -292,6 +295,8 @@ fixtures = [
                     "Employee Checkin-custom_attendance_regularization",
                     # Attendance Custom Fields
                     "Attendance-custom_attendance_regularization",
+                    # Leave Application Custom Fields
+                    "Leave Application-custom_medical_certificate",
                     # Leave Policy Custom Fields - Employee
                     "Employee-custom_leave_details_section",
                     "Employee-custom_nationality",
