@@ -26,8 +26,9 @@ frappe.ui.form.on('Leave Application', {
         filter_dashboard_to_annual_leave(frm);
         // Add Withdraw button for approved leave applications
         if (frm.doc.docstatus === 1 && frm.doc.status === 'Approved') {
-            // Check if leave hasn't ended yet
-            if (frappe.datetime.get_diff(frm.doc.to_date, frappe.datetime.nowdate()) >= 0) {
+            // Ongoing / future leave, or leave that ended within the last 60 days
+            // (the server only accepts an ended leave when check-ins cover every working day)
+            if (frappe.datetime.get_diff(frm.doc.to_date, frappe.datetime.nowdate()) >= -60) {
                 // Check for existing pending withdrawal request
                 frappe.call({
                     method: 'frappe.client.get_count',

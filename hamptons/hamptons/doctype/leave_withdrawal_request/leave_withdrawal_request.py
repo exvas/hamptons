@@ -4,7 +4,7 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import nowdate, now_datetime, getdate
+from frappe.utils import add_days, nowdate, now_datetime, getdate
 
 
 class LeaveWithdrawalRequest(Document):
@@ -27,9 +27,19 @@ class LeaveWithdrawalRequest(Document):
 		if leave_app.employee != self.employee:
 			frappe.throw(_("Leave Application does not belong to this employee"))
 
-		# Check if leave dates haven't passed completely
+		# Leave that has already ended can only be withdrawn when the biometric check-ins prove
+		# the employee worked every working day of it (the approver still decides).
 		if getdate(leave_app.to_date) < getdate(nowdate()):
-			frappe.throw(_("Cannot withdraw leave that has already ended"))
+			missing = get_leave_days_without_checkins(leave_app)
+			if missing:
+				frappe.throw(
+					_(
+						"This leave has already ended. An ended leave can only be withdrawn when your "
+						"biometric check-ins show you worked on every day of it. No check-ins found on: {0}. "
+						"Please contact HR."
+					).format(", ".join(frappe.format(d, {"fieldtype": "Date"}) for d in missing)),
+					title=_("Cannot Withdraw Ended Leave"),
+				)
 
 	def validate_duplicate_request(self):
 		"""Check for existing pending withdrawal request"""
@@ -59,6 +69,7 @@ class LeaveWithdrawalRequest(Document):
 		"""Cancel leave application on Approved, notify employee on either decision."""
 		if self.status == "Approved":
 			self.cancel_leave_application()
+			self.rebuild_attendance_for_past_days()
 			frappe.db.set_value("Leave Withdrawal Request", self.name, {
 				"processed_by": frappe.session.user,
 				"processed_on": now_datetime()
@@ -168,6 +179,44 @@ class LeaveWithdrawalRequest(Document):
 			pass
 
 		frappe.msgprint(_("Leave Application {0} has been cancelled").format(self.leave_application))
+
+	def rebuild_attendance_for_past_days(self):
+		"""Withdrawing a leave cancels its 'On Leave' attendance. For days that are already in the
+		past, rebuild attendance from the employee's check-ins (the scheduled consolidation only
+		looks back 7 days, so older days would otherwise stay without attendance)."""
+		from hamptons.overrides.employee_checkin import consolidate_attendance_for_date
+
+		leave_app = frappe.db.get_value(
+			"Leave Application", self.leave_application, ["employee", "from_date", "to_date"], as_dict=True
+		)
+		last_past_day = min(getdate(leave_app.to_date), add_days(getdate(nowdate()), -1))
+		day = getdate(leave_app.from_date)
+		rebuilt = []
+		while day <= last_past_day:
+			has_attendance = frappe.db.exists(
+				"Attendance", {"employee": leave_app.employee, "attendance_date": day, "docstatus": ("<", 2)}
+			)
+			has_checkins = frappe.db.sql(
+				"select 1 from `tabEmployee Checkin` where employee = %s and date(time) = %s limit 1",
+				(leave_app.employee, day),
+			)
+			if has_checkins and not has_attendance:
+				try:
+					consolidate_attendance_for_date(day)
+					rebuilt.append(day)
+				except Exception:
+					frappe.log_error(
+						title=f"Leave withdrawal attendance rebuild failed: {self.name} {day}",
+						message=frappe.get_traceback(),
+					)
+			day = add_days(day, 1)
+
+		if rebuilt:
+			frappe.msgprint(
+				_("Attendance rebuilt from check-ins for: {0}").format(
+					", ".join(frappe.format(d, {"fieldtype": "Date"}) for d in rebuilt)
+				)
+			)
 
 	def after_insert(self):
 		"""Notify HOD about new withdrawal request."""
@@ -366,6 +415,27 @@ class LeaveWithdrawalRequest(Document):
 			pass
 
 
+def get_leave_days_without_checkins(leave_app):
+	"""Working days (not holidays / weekly offs) of the leave that have no biometric check-in."""
+	from hamptons.overrides.employee_checkin import is_holiday_or_weekly_off
+
+	punched = {
+		getdate(r[0])
+		for r in frappe.db.sql(
+			"""select distinct date(time) from `tabEmployee Checkin`
+			where employee = %s and date(time) between %s and %s""",
+			(leave_app.employee, leave_app.from_date, leave_app.to_date),
+		)
+	}
+	missing = []
+	day = getdate(leave_app.from_date)
+	while day <= getdate(leave_app.to_date):
+		if day not in punched and not is_holiday_or_weekly_off(leave_app.employee, day):
+			missing.append(day)
+		day = add_days(day, 1)
+	return missing
+
+
 def _build_lwr_email(header_color, header_title, header_subtitle, body_html):
 	return f"""
 <!DOCTYPE html>
@@ -510,10 +580,15 @@ def get_withdrawable_leaves():
 		filters={
 			"employee": employee,
 			"docstatus": 1,
-			"to_date": (">=", nowdate())
+			"to_date": (">=", add_days(nowdate(), -60))
 		},
-		fields=["name", "leave_type", "from_date", "to_date", "total_leave_days", "status"]
+		fields=["name", "employee", "leave_type", "from_date", "to_date", "total_leave_days", "status"]
 	)
+	# Ended leaves are only withdrawable when check-ins cover every working day
+	leaves = [
+		leave for leave in leaves
+		if getdate(leave.to_date) >= getdate(nowdate()) or not get_leave_days_without_checkins(leave)
+	]
 
 	# Filter out leaves that already have pending withdrawal requests
 	result = []
