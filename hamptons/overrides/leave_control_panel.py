@@ -170,13 +170,21 @@ def check_leave_eligibility(employee_id, leave_type_name):
 		return True, None  # Allow if check fails
 
 
-def override_leave_control_panel():
+def override_leave_control_panel(*args):
 	"""
 	Monkey patch Leave Control Panel and Leave Policy Assignment to handle validation gracefully
+
+	Runs on import (hamptons/__init__.py) and as an after_app_install hook. Frappe
+	calls that hook with the installed app's name - for every app installed on a
+	site that has hamptons, not just hamptons - so it must accept an argument, and
+	it must only patch once or the methods get wrapped around themselves.
 	"""
 	try:
 		from hrms.hr.doctype.leave_control_panel.leave_control_panel import LeaveControlPanel
 		from hrms.hr.doctype.leave_policy_assignment.leave_policy_assignment import LeavePolicyAssignment
+
+		if getattr(LeavePolicyAssignment, "_hamptons_patched", False):
+			return
 
 		# Replace Leave Control Panel method
 		LeaveControlPanel.create_leave_policy_assignments = create_leave_policy_assignments
@@ -247,6 +255,7 @@ def override_leave_control_panel():
 
 		LeavePolicyAssignment.create_leave_allocation = patched_create_leave_allocation
 		LeavePolicyAssignment.grant_leave_alloc_for_employee = patched_grant_leave_alloc
+		LeavePolicyAssignment._hamptons_patched = True
 
 		frappe.logger().info("Leave Control Panel and Leave Policy Assignment overrides applied successfully")
 	except Exception as e:
