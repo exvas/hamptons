@@ -68,7 +68,7 @@ OPENING_BALANCES = {
 	"1052": 12.5,
 	"1054": 10,
 	"1055": 10,
-	"1057": 7.5
+	"1057": 7.5,
 }
 
 
@@ -90,16 +90,16 @@ def get_leave_policy_details(policy_name="HR-LPOL-2025-00002"):
 	leave_allocations = []
 
 	for detail in policy.leave_policy_details:
-		leave_allocations.append({
-			"leave_type": detail.leave_type,
-			"annual_allocation": detail.annual_allocation
-		})
+		leave_allocations.append(
+			{"leave_type": detail.leave_type, "annual_allocation": detail.annual_allocation}
+		)
 
 	return leave_allocations
 
 
-def create_leave_allocation(employee_id, leave_type, leaves_allocated, from_date, to_date,
-							description="", carry_forward=False):
+def create_leave_allocation(
+	employee_id, leave_type, leaves_allocated, from_date, to_date, description="", carry_forward=False
+):
 	"""
 	Create or update leave allocation for an employee
 
@@ -117,13 +117,16 @@ def create_leave_allocation(employee_id, leave_type, leaves_allocated, from_date
 	"""
 	try:
 		# Check if allocation already exists
-		existing = frappe.db.exists("Leave Allocation", {
-			"employee": employee_id,
-			"leave_type": leave_type,
-			"from_date": from_date,
-			"to_date": to_date,
-			"docstatus": ["<", 2]  # Not cancelled
-		})
+		existing = frappe.db.exists(
+			"Leave Allocation",
+			{
+				"employee": employee_id,
+				"leave_type": leave_type,
+				"from_date": from_date,
+				"to_date": to_date,
+				"docstatus": ["<", 2],  # Not cancelled
+			},
+		)
 
 		if existing:
 			doc = frappe.get_doc("Leave Allocation", existing)
@@ -159,15 +162,14 @@ def create_leave_allocation(employee_id, leave_type, leaves_allocated, from_date
 	except Exception as e:
 		frappe.log_error(
 			message=f"Error creating leave allocation for {employee_id} - {leave_type}: {str(e)}",
-			title="Leave Allocation Error"
+			title="Leave Allocation Error",
 		)
 		print(f"  ✗ Error: {str(e)}")
 		frappe.db.rollback()
 		return None
 
 
-def allocate_leaves_with_opening_balance(from_date=None, to_date=None,
-										policy_name="HR-LPOL-2025-00002"):
+def allocate_leaves_with_opening_balance(from_date=None, to_date=None, policy_name="HR-LPOL-2025-00002"):
 	"""
 	Allocate all leave types from policy with Annual Leave opening balances
 
@@ -179,9 +181,9 @@ def allocate_leaves_with_opening_balance(from_date=None, to_date=None,
 	Returns:
 		Dictionary with results
 	"""
-	print("\n" + "="*80)
+	print("\n" + "=" * 80)
 	print("ALLOCATING LEAVES WITH OPENING BALANCES")
-	print("="*80 + "\n")
+	print("=" * 80 + "\n")
 
 	# Set dates if not provided
 	if not from_date:
@@ -210,15 +212,15 @@ def allocate_leaves_with_opening_balance(from_date=None, to_date=None,
 	has_custom_fields = frappe.db.has_column("Employee", "custom_nationality")
 
 	if has_custom_fields:
-		employees = frappe.get_all("Employee",
+		employees = frappe.get_all(
+			"Employee",
 			filters={"status": "Active"},
-			fields=["name", "employee_name", "gender", "custom_nationality", "custom_religion"]
+			fields=["name", "employee_name", "gender", "custom_nationality", "custom_religion"],
 		)
 	else:
 		print("⚠ Custom fields not found, using basic employee data")
-		employees = frappe.get_all("Employee",
-			filters={"status": "Active"},
-			fields=["name", "employee_name", "gender"]
+		employees = frappe.get_all(
+			"Employee", filters={"status": "Active"}, fields=["name", "employee_name", "gender"]
 		)
 		# Add empty custom fields
 		for emp in employees:
@@ -259,13 +261,19 @@ def allocate_leaves_with_opening_balance(from_date=None, to_date=None,
 
 			# Gender restriction check
 			if hasattr(leave_type_doc, "custom_gender_specific") and leave_type_doc.custom_gender_specific:
-				if leave_type_doc.custom_gender_specific != "All" and leave_type_doc.custom_gender_specific != gender:
+				if (
+					leave_type_doc.custom_gender_specific != "All"
+					and leave_type_doc.custom_gender_specific != gender
+				):
 					print(f"  ⊘ Skipped {leave_type} - Gender restriction")
 					skipped_count += 1
 					continue
 
 			# Religion restriction check
-			if hasattr(leave_type_doc, "custom_religion_specific") and leave_type_doc.custom_religion_specific:
+			if (
+				hasattr(leave_type_doc, "custom_religion_specific")
+				and leave_type_doc.custom_religion_specific
+			):
 				if leave_type_doc.custom_religion_specific == "All (Muslim)" and religion != "Muslim":
 					print(f"  ⊘ Skipped {leave_type} - Religion restriction")
 					skipped_count += 1
@@ -299,7 +307,7 @@ def allocate_leaves_with_opening_balance(from_date=None, to_date=None,
 				from_date=from_date,
 				to_date=to_date,
 				description=description,
-				carry_forward=(leave_type == "Annual Leave")  # Only Annual Leave can be carried forward
+				carry_forward=(leave_type == "Annual Leave"),  # Only Annual Leave can be carried forward
 			)
 
 			if result:
@@ -315,24 +323,23 @@ def allocate_leaves_with_opening_balance(from_date=None, to_date=None,
 		success_count += emp_success
 		failed_count += emp_failed
 
-	print("\n" + "="*80)
+	print("\n" + "=" * 80)
 	print("✅ LEAVE ALLOCATION COMPLETE!")
 	print(f"\nTotal Allocations: {success_count}")
 	print(f"Failed: {failed_count}")
 	print(f"Skipped (eligibility): {skipped_count}")
-	print("="*80 + "\n")
+	print("=" * 80 + "\n")
 
 	return {
 		"status": "success",
 		"total_employees": len(employees),
 		"allocations_created": success_count,
 		"allocations_failed": failed_count,
-		"allocations_skipped": skipped_count
+		"allocations_skipped": skipped_count,
 	}
 
 
-def allocate_single_employee(employee_id, from_date=None, to_date=None,
-							policy_name="HR-LPOL-2025-00002"):
+def allocate_single_employee(employee_id, from_date=None, to_date=None, policy_name="HR-LPOL-2025-00002"):
 	"""
 	Allocate leaves for a single employee with opening balance
 
@@ -345,9 +352,9 @@ def allocate_single_employee(employee_id, from_date=None, to_date=None,
 	Returns:
 		Dictionary with results
 	"""
-	print("\n" + "="*80)
+	print("\n" + "=" * 80)
 	print(f"ALLOCATING LEAVES FOR EMPLOYEE: {employee_id}")
-	print("="*80 + "\n")
+	print("=" * 80 + "\n")
 
 	# Set dates if not provided
 	if not from_date:
@@ -390,7 +397,10 @@ def allocate_single_employee(employee_id, from_date=None, to_date=None,
 
 		# Gender restriction
 		if hasattr(leave_type_doc, "custom_gender_specific") and leave_type_doc.custom_gender_specific:
-			if leave_type_doc.custom_gender_specific != "All" and leave_type_doc.custom_gender_specific != emp.gender:
+			if (
+				leave_type_doc.custom_gender_specific != "All"
+				and leave_type_doc.custom_gender_specific != emp.gender
+			):
 				print(f"⊘ Skipped {leave_type} - Gender restriction")
 				skipped_count += 1
 				continue
@@ -429,7 +439,7 @@ def allocate_single_employee(employee_id, from_date=None, to_date=None,
 			from_date=from_date,
 			to_date=to_date,
 			description=description,
-			carry_forward=(leave_type == "Annual Leave")
+			carry_forward=(leave_type == "Annual Leave"),
 		)
 
 		if result:
@@ -444,11 +454,11 @@ def allocate_single_employee(employee_id, from_date=None, to_date=None,
 	print(f"Allocated: {success_count}")
 	print(f"Failed: {failed_count}")
 	print(f"Skipped: {skipped_count}")
-	print("="*80 + "\n")
+	print("=" * 80 + "\n")
 
 	return {
 		"status": "success",
 		"allocations_created": success_count,
 		"allocations_failed": failed_count,
-		"allocations_skipped": skipped_count
+		"allocations_skipped": skipped_count,
 	}

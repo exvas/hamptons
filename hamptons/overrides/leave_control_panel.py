@@ -57,14 +57,14 @@ def create_leave_policy_assignments(self, employees: list) -> dict:
 			# Log the error
 			frappe.log_error(
 				message=f"Leave allocation validation failed for employee {employee}: {error_msg}",
-				title="Leave Allocation Validation Error"
+				title="Leave Allocation Validation Error",
 			)
 
 			# Show user-friendly message
 			frappe.msgprint(
 				msg=_("Leave allocation skipped for employee {0}: {1}").format(employee, error_msg),
 				title=_("Validation Error"),
-				indicator="orange"
+				indicator="orange",
 			)
 
 			failure.append(employee)
@@ -75,7 +75,7 @@ def create_leave_policy_assignments(self, employees: list) -> dict:
 
 			frappe.log_error(
 				message=f"Leave Policy Assignment failed for employee {employee}: {str(e)}",
-				title="Leave Policy Assignment Error"
+				title="Leave Policy Assignment Error",
 			)
 
 			failure.append(employee)
@@ -102,25 +102,34 @@ def check_leave_eligibility(employee_id, leave_type_name):
 
 		# Check gender restriction
 		if hasattr(leave_type, "custom_gender_specific") and leave_type.custom_gender_specific:
-			if leave_type.custom_gender_specific not in [None, '', 'All']:
+			if leave_type.custom_gender_specific not in [None, "", "All"]:
 				if leave_type.custom_gender_specific != employee.gender:
-					return False, f"Gender restriction: requires {leave_type.custom_gender_specific}, employee is {employee.gender}"
+					return (
+						False,
+						f"Gender restriction: requires {leave_type.custom_gender_specific}, employee is {employee.gender}",
+					)
 
 		# Check nationality restriction (mirrors validate_leave_allocation in leave_allocation.py)
 		if hasattr(leave_type, "custom_nationality_specific") and leave_type.custom_nationality_specific:
-			if leave_type.custom_nationality_specific not in [None, '', 'All']:
+			if leave_type.custom_nationality_specific not in [None, "", "All"]:
 				emp_nationality = employee.get("custom_nationality")
 				if leave_type.custom_nationality_specific != emp_nationality:
-					return False, f"Nationality restriction: requires {leave_type.custom_nationality_specific}, employee is {emp_nationality or 'not set'}"
+					return (
+						False,
+						f"Nationality restriction: requires {leave_type.custom_nationality_specific}, employee is {emp_nationality or 'not set'}",
+					)
 
 		# Check religion restriction
 		if hasattr(leave_type, "custom_religion_specific") and leave_type.custom_religion_specific:
-			if leave_type.custom_religion_specific not in [None, '', 'All']:
+			if leave_type.custom_religion_specific not in [None, "", "All"]:
 				emp_religion = employee.get("custom_religion")
 
 				if leave_type.custom_religion_specific == "All (Muslim)":
 					if emp_religion != "Muslim":
-						return False, f"Religion restriction: requires Muslim, employee is {emp_religion or 'not set'}"
+						return (
+							False,
+							f"Religion restriction: requires Muslim, employee is {emp_religion or 'not set'}",
+						)
 				elif leave_type.custom_religion_specific == "Non-Muslim":
 					if emp_religion == "Muslim":
 						return False, f"Religion restriction: requires Non-Muslim, employee is Muslim"
@@ -129,7 +138,8 @@ def check_leave_eligibility(employee_id, leave_type_name):
 		if hasattr(leave_type, "custom_once_in_service") and leave_type.custom_once_in_service:
 			if leave_type_name == "Hajj Leave":
 				# Check if Hajj Leave was actually CONSUMED (Leave Application approved and taken)
-				consumed_leave = frappe.db.sql("""
+				consumed_leave = frappe.db.sql(
+					"""
 					SELECT la.name, la.from_date, la.to_date
 					FROM `tabLeave Application` la
 					WHERE la.employee = %s
@@ -137,16 +147,23 @@ def check_leave_eligibility(employee_id, leave_type_name):
 						AND la.docstatus = 1
 						AND la.status IN ('Approved', 'Open')
 					LIMIT 1
-				""", (employee_id,), as_dict=1)
+				""",
+					(employee_id,),
+					as_dict=1,
+				)
 
 				if consumed_leave:
 					# Hajj Leave was actually consumed - block re-allocation
-					return False, f"Hajj Leave already consumed (from {consumed_leave[0].from_date} to {consumed_leave[0].to_date})"
+					return (
+						False,
+						f"Hajj Leave already consumed (from {consumed_leave[0].from_date} to {consumed_leave[0].to_date})",
+					)
 
 				# Check if there's an ACTIVE allocation (not expired, not cancelled)
 				from frappe.utils import today
 
-				active_allocation = frappe.db.sql("""
+				active_allocation = frappe.db.sql(
+					"""
 					SELECT name, from_date, to_date
 					FROM `tabLeave Allocation`
 					WHERE employee = %s
@@ -154,11 +171,17 @@ def check_leave_eligibility(employee_id, leave_type_name):
 						AND docstatus = 1
 						AND to_date >= %s
 					LIMIT 1
-				""", (employee_id, today()), as_dict=1)
+				""",
+					(employee_id, today()),
+					as_dict=1,
+				)
 
 				if active_allocation:
 					# There's an active allocation - don't create duplicate
-					return False, f"Hajj Leave allocation already active (valid until {active_allocation[0].to_date})"
+					return (
+						False,
+						f"Hajj Leave allocation already active (valid until {active_allocation[0].to_date})",
+					)
 
 				# No consumed leave and no active allocation - allow (re-)allocation
 				return True, None
@@ -200,9 +223,7 @@ def override_leave_control_panel(*args):
 
 			if not eligible:
 				# Log that we're skipping this leave
-				frappe.logger().info(
-					f"Skipping {leave_details.name} for employee {self.employee}: {reason}"
-				)
+				frappe.logger().info(f"Skipping {leave_details.name} for employee {self.employee}: {reason}")
 				# Return None to indicate skipped
 				return None, 0
 
@@ -215,7 +236,10 @@ def override_leave_control_panel(*args):
 				frappe.throw(_("Leave already have been assigned for this Leave Policy Assignment"))
 			else:
 				leave_allocations = {}
-				from hrms.hr.doctype.leave_policy_assignment.leave_policy_assignment import get_leave_type_details
+				from hrms.hr.doctype.leave_policy_assignment.leave_policy_assignment import (
+					get_leave_type_details,
+				)
+
 				leave_type_details = get_leave_type_details()
 
 				leave_policy = frappe.get_doc("Leave Policy", self.leave_policy)

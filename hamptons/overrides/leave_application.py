@@ -18,12 +18,15 @@ from hrms.hr.doctype.leave_application.leave_application import LeaveApplication
 def upload_attach_file(content, filename):
 	"""Upload a file for an Attach field and return its URL."""
 	import base64
-	file_doc = frappe.get_doc({
-		"doctype": "File",
-		"file_name": filename,
-		"content": base64.b64decode(content),
-		"is_private": 0,
-	})
+
+	file_doc = frappe.get_doc(
+		{
+			"doctype": "File",
+			"file_name": filename,
+			"content": base64.b64decode(content),
+			"is_private": 0,
+		}
+	)
 	file_doc.save(ignore_permissions=True)
 	return {"file_url": file_doc.file_url}
 
@@ -32,6 +35,7 @@ def upload_attach_file(content, filename):
 def get_leave_balance_map_annual_only():
 	"""Mobile app leave balance map - only returns Annual Leave."""
 	from hrms.api import get_leave_balance_map
+
 	full_map = get_leave_balance_map()
 	return {k: v for k, v in full_map.items() if k == "Annual Leave"}
 
@@ -81,8 +85,10 @@ def validate_leave_application(doc, method=None):
 	if requires_medical_certificate(doc.leave_type) and not _has_medical_certificate(doc):
 		if not (doc.is_new() and _is_mobile_app_insert()):
 			frappe.throw(
-				_("Please upload a medical certificate before saving a {0} application.").format(doc.leave_type),
-				title=_("Medical Certificate Required")
+				_("Please upload a medical certificate before saving a {0} application.").format(
+					doc.leave_type
+				),
+				title=_("Medical Certificate Required"),
 			)
 
 	# Balance already claimed by the employee's other pending applications is not available
@@ -96,14 +102,16 @@ def validate_leave_application(doc, method=None):
 		if leave_start_date < getdate(minimum_from_date):
 			days_diff = (getdate(minimum_from_date) - leave_start_date).days
 			frappe.msgprint(
-				_("Note: Annual Leave should ideally be submitted at least 2 weeks in advance. "
-				  "Your selected start date is {0}, which is {1} day(s) before the recommended date of {2}.").format(
+				_(
+					"Note: Annual Leave should ideally be submitted at least 2 weeks in advance. "
+					"Your selected start date is {0}, which is {1} day(s) before the recommended date of {2}."
+				).format(
 					frappe.format(leave_start_date, {"fieldtype": "Date"}),
 					days_diff,
-					frappe.format(minimum_from_date, {"fieldtype": "Date"})
+					frappe.format(minimum_from_date, {"fieldtype": "Date"}),
 				),
 				title=_("Early Notice Recommended for Annual Leave"),
-				indicator="orange"
+				indicator="orange",
 			)
 
 
@@ -143,7 +151,13 @@ def validate_pending_leave_balance(doc):
 				and name != %s
 				and from_date >= %s and to_date <= %s
 			""",
-			(doc.employee, doc.leave_type, doc.name or "", alloc_on_from_date.from_date, alloc_on_to_date.to_date),
+			(
+				doc.employee,
+				doc.leave_type,
+				doc.name or "",
+				alloc_on_from_date.from_date,
+				alloc_on_to_date.to_date,
+			),
 		)[0][0]
 	)
 	if not pending_days:
@@ -211,24 +225,32 @@ def _has_medical_certificate(doc):
 	"""Return True if doc has a medical certificate via custom field or sidebar attachment."""
 	if doc.custom_medical_certificate:
 		return True
-	return bool(frappe.get_all("File", filters={
-		"attached_to_doctype": "Leave Application",
-		"attached_to_name": doc.name,
-	}, limit=1))
+	return bool(
+		frappe.get_all(
+			"File",
+			filters={
+				"attached_to_doctype": "Leave Application",
+				"attached_to_name": doc.name,
+			},
+			limit=1,
+		)
+	)
 
 
 def before_submit_leave_application(doc, method=None):
 	"""Enforce medical certificate requirement before Sick / Caregiver leave is submitted (approved)."""
 	if requires_medical_certificate(doc.leave_type) and not _has_medical_certificate(doc):
 		frappe.throw(
-			_("A medical certificate is required before a {0} application can be approved.").format(doc.leave_type),
-			title=_("Medical Certificate Required")
+			_("A medical certificate is required before a {0} application can be approved.").format(
+				doc.leave_type
+			),
+			title=_("Medical Certificate Required"),
 		)
 
 
 def on_submit_leave_application(doc, method=None):
 	"""Mark Hajj Leave as consumed when Leave Application is submitted."""
-	if doc.leave_type == "Hajj Leave" and doc.status in ['Approved', 'Open']:
+	if doc.leave_type == "Hajj Leave" and doc.status in ["Approved", "Open"]:
 		employee = frappe.get_doc("Employee", doc.employee)
 		employee.custom_hajj_leave_taken = 1
 		employee.custom_hajj_leave_date = doc.from_date
@@ -242,13 +264,16 @@ def on_cancel_leave_application(doc, method=None):
 		if getdate(doc.from_date) > getdate(today()):
 			employee = frappe.get_doc("Employee", doc.employee)
 
-			other_hajj_leaves = frappe.db.count("Leave Application", {
-				"employee": doc.employee,
-				"leave_type": "Hajj Leave",
-				"docstatus": 1,
-				"status": ["in", ["Approved", "Open"]],
-				"name": ["!=", doc.name]
-			})
+			other_hajj_leaves = frappe.db.count(
+				"Leave Application",
+				{
+					"employee": doc.employee,
+					"leave_type": "Hajj Leave",
+					"docstatus": 1,
+					"status": ["in", ["Approved", "Open"]],
+					"name": ["!=", doc.name],
+				},
+			)
 
 			if other_hajj_leaves == 0:
 				employee.custom_hajj_leave_taken = 0
@@ -289,7 +314,7 @@ def on_update_leave_application(doc, method=None):
 		"total_days": doc.total_leave_days,
 		"reason": doc.description or "Not specified",
 		"leave_url": leave_url,
-		"workflow_state": workflow_state
+		"workflow_state": workflow_state,
 	}
 
 	if workflow_state == "Pending":
@@ -308,6 +333,7 @@ def on_update_leave_application(doc, method=None):
 def _send_notification_to_hod(doc, context, notification_type):
 	"""Send notification to HOD (reports_to or department HOD)."""
 	from hamptons.utils.email_utils import is_outgoing_email_enabled
+
 	if not is_outgoing_email_enabled():
 		return
 
@@ -325,7 +351,7 @@ def _send_notification_to_hod(doc, context, notification_type):
 				message=message,
 				reference_doctype="Leave Application",
 				reference_name=doc.name,
-				now=True
+				now=True,
 			)
 		except Exception as e:
 			frappe.logger().error(f"Leave notification failed for {recipient}: {str(e)}")
@@ -334,6 +360,7 @@ def _send_notification_to_hod(doc, context, notification_type):
 def _send_notification_to_employee(email, context, notification_type):
 	"""Send notification to the employee."""
 	from hamptons.utils.email_utils import is_outgoing_email_enabled
+
 	if not is_outgoing_email_enabled():
 		return
 
@@ -349,7 +376,7 @@ def _send_notification_to_employee(email, context, notification_type):
 			message=message,
 			reference_doctype="Leave Application",
 			reference_name=context.get("leave_url", "").split("/")[-1] if context.get("leave_url") else None,
-			now=True
+			now=True,
 		)
 	except Exception as e:
 		frappe.logger().error(f"Leave notification failed for {email}: {str(e)}")
@@ -367,7 +394,8 @@ def _get_hod_recipients(doc):
 			recipients.append(hod_email)
 
 	if not recipients and employee.department:
-		dept_hods = frappe.db.sql("""
+		dept_hods = frappe.db.sql(
+			"""
 			SELECT DISTINCT u.email
 			FROM `tabUser` u
 			INNER JOIN `tabHas Role` hr ON hr.parent = u.name
@@ -376,7 +404,10 @@ def _get_hod_recipients(doc):
 			AND e.department = %s
 			AND u.enabled = 1
 			AND u.email IS NOT NULL
-		""", (employee.department,), as_dict=True)
+		""",
+			(employee.department,),
+			as_dict=True,
+		)
 		recipients.extend([d.email for d in dept_hods if d.email])
 
 	return list(set(recipients))
@@ -553,7 +584,7 @@ def _get_notification_content(notification_type, context):
 			header_color="#1e3a5f",
 			header_title="Leave Application — Action Required",
 			header_subtitle=f"Submitted by {emp_name} ({emp_id})",
-			body_html=body
+			body_html=body,
 		)
 
 	elif notification_type == "approved":
@@ -582,7 +613,7 @@ def _get_notification_content(notification_type, context):
 			header_color="#166534",
 			header_title="Leave Application Approved",
 			header_subtitle="Your leave request has been approved",
-			body_html=body
+			body_html=body,
 		)
 
 	elif notification_type == "rejected":
@@ -611,7 +642,7 @@ def _get_notification_content(notification_type, context):
 			header_color="#991b1b",
 			header_title="Leave Application Rejected",
 			header_subtitle="Your leave request could not be approved",
-			body_html=body
+			body_html=body,
 		)
 
 	else:
@@ -627,7 +658,7 @@ def _get_notification_content(notification_type, context):
 			header_color="#1e3a5f",
 			header_title="Leave Application Update",
 			header_subtitle=f"Status: {context['workflow_state']}",
-			body_html=body
+			body_html=body,
 		)
 
 	return subject, message
@@ -638,12 +669,13 @@ def _log_workflow_action(doc, from_state, to_state):
 	action = "Approve" if "Approved" in to_state else "Reject" if "Rejected" in to_state else "Submit"
 	try:
 		from hamptons.hamptons.doctype.workflow_action_log.workflow_action_log import log_workflow_action
+
 		log_workflow_action(
 			reference_doctype="Leave Application",
 			reference_name=doc.name,
 			action=action,
 			from_state=from_state or "",
-			to_state=to_state
+			to_state=to_state,
 		)
 	except Exception as e:
 		frappe.logger().error(f"Failed to log workflow action for {doc.name}: {str(e)}")

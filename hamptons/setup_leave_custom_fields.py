@@ -32,8 +32,7 @@ def create_custom_field_if_not_exists(doctype, field_dict):
 	except Exception as e:
 		print(f"  ✗ Error creating {fieldname}: {str(e)}")
 		frappe.log_error(
-			message=f"Error creating custom field {fieldname}: {str(e)}",
-			title="Custom Field Creation Error"
+			message=f"Error creating custom field {fieldname}: {str(e)}", title="Custom Field Creation Error"
 		)
 		return False
 
@@ -45,9 +44,9 @@ def setup_custom_fields():
 	Run using:
 	bench --site [site] execute hamptons.setup_leave_custom_fields.setup_custom_fields
 	"""
-	print("\n" + "="*70)
+	print("\n" + "=" * 70)
 	print("SETTING UP CUSTOM FIELDS FOR LEAVE POLICY")
-	print("="*70 + "\n")
+	print("=" * 70 + "\n")
 
 	success_count = 0
 	failed_count = 0
@@ -62,7 +61,7 @@ def setup_custom_fields():
 			"label": "Leave Policy Details",
 			"fieldtype": "Section Break",
 			"insert_after": "attendance_device_id",
-			"collapsible": 1
+			"collapsible": 1,
 		},
 		{
 			"fieldname": "custom_nationality",
@@ -71,7 +70,7 @@ def setup_custom_fields():
 			"options": "\nOmani\nNon-Omani",
 			"insert_after": "custom_leave_details_section",
 			"in_standard_filter": 1,
-			"description": "Employee nationality for leave policy purposes"
+			"description": "Employee nationality for leave policy purposes",
 		},
 		{
 			"fieldname": "custom_religion",
@@ -80,7 +79,7 @@ def setup_custom_fields():
 			"options": "\nMuslim\nNon-Muslim",
 			"insert_after": "custom_nationality",
 			"in_standard_filter": 1,
-			"description": "Required for Hajj leave and bereavement leave eligibility"
+			"description": "Required for Hajj leave and bereavement leave eligibility",
 		},
 		{
 			"fieldname": "custom_hajj_leave_taken",
@@ -88,7 +87,7 @@ def setup_custom_fields():
 			"fieldtype": "Check",
 			"insert_after": "custom_religion",
 			"default": 0,
-			"description": "Check if employee has already availed Hajj leave (once in service)"
+			"description": "Check if employee has already availed Hajj leave (once in service)",
 		},
 		{
 			"fieldname": "custom_hajj_leave_date",
@@ -96,12 +95,12 @@ def setup_custom_fields():
 			"fieldtype": "Date",
 			"insert_after": "custom_hajj_leave_taken",
 			"depends_on": "eval:doc.custom_hajj_leave_taken==1",
-			"description": "Date when Hajj leave was taken"
+			"description": "Date when Hajj leave was taken",
 		},
 		{
 			"fieldname": "custom_leave_column_break",
 			"fieldtype": "Column Break",
-			"insert_after": "custom_hajj_leave_date"
+			"insert_after": "custom_hajj_leave_date",
 		},
 		{
 			"fieldname": "custom_leave_carryforward_enabled",
@@ -109,7 +108,7 @@ def setup_custom_fields():
 			"fieldtype": "Check",
 			"insert_after": "custom_leave_column_break",
 			"default": 1,
-			"description": "Allow employee to carry forward unused annual leaves"
+			"description": "Allow employee to carry forward unused annual leaves",
 		},
 		{
 			"fieldname": "custom_max_carryforward_days",
@@ -118,8 +117,8 @@ def setup_custom_fields():
 			"insert_after": "custom_leave_carryforward_enabled",
 			"default": 10,
 			"depends_on": "eval:doc.custom_leave_carryforward_enabled==1",
-			"description": "Maximum number of days that can be carried forward"
-		}
+			"description": "Maximum number of days that can be carried forward",
+		},
 	]
 
 	for field in employee_fields:
@@ -141,7 +140,7 @@ def setup_custom_fields():
 			"label": "Oman Labor Law Settings",
 			"fieldtype": "Section Break",
 			"insert_after": "description",
-			"collapsible": 1
+			"collapsible": 1,
 		},
 		{
 			"fieldname": "custom_gender_specific",
@@ -150,7 +149,7 @@ def setup_custom_fields():
 			"options": "\nAll\nMale\nFemale",
 			"insert_after": "custom_oman_leave_section",
 			"default": "All",
-			"description": "Restrict leave type to specific gender"
+			"description": "Restrict leave type to specific gender",
 		},
 		{
 			"fieldname": "custom_nationality_specific",
@@ -159,7 +158,7 @@ def setup_custom_fields():
 			"options": "\nAll\nOmani\nNon-Omani",
 			"insert_after": "custom_gender_specific",
 			"default": "All",
-			"description": "Restrict leave type to specific nationality"
+			"description": "Restrict leave type to specific nationality",
 		},
 		{
 			"fieldname": "custom_religion_specific",
@@ -168,7 +167,7 @@ def setup_custom_fields():
 			"options": "\nAll\nAll (Muslim)\nNon-Muslim",
 			"insert_after": "custom_nationality_specific",
 			"default": "All",
-			"description": "Restrict leave type to specific religion (for Hajj leave)"
+			"description": "Restrict leave type to specific religion (for Hajj leave)",
 		},
 		{
 			"fieldname": "custom_once_in_service",
@@ -176,8 +175,8 @@ def setup_custom_fields():
 			"fieldtype": "Check",
 			"insert_after": "custom_religion_specific",
 			"default": 0,
-			"description": "Check if leave can be availed only once during employment (e.g., Hajj Leave)"
-		}
+			"description": "Check if leave can be availed only once during employment (e.g., Hajj Leave)",
+		},
 	]
 
 	emp_success = success_count
@@ -188,18 +187,20 @@ def setup_custom_fields():
 			failed_count += 1
 
 	print("-" * 70)
-	print(f"Leave Type Fields: {success_count - emp_success} created/updated, {failed_count - (failed_count)} failed\n")
+	print(
+		f"Leave Type Fields: {success_count - emp_success} created/updated, {failed_count - (failed_count)} failed\n"
+	)
 
 	# Commit all changes
 	frappe.db.commit()
 
-	print("="*70)
+	print("=" * 70)
 	print("✅ CUSTOM FIELDS SETUP COMPLETE!")
 	print(f"\nTotal: {success_count} created/updated, {failed_count} failed")
 	print("\nCustom Fields Summary:")
 	print("  Employee: Nationality, Religion, Hajj Tracking, Carryforward")
 	print("  Leave Type: Gender/Nationality/Religion restrictions")
-	print("="*70 + "\n")
+	print("=" * 70 + "\n")
 
 	return {"status": "success", "created": success_count, "failed": failed_count}
 
@@ -211,9 +212,9 @@ def update_leave_types_with_restrictions():
 	Run using:
 	bench --site [site] execute hamptons.setup_leave_custom_fields.update_leave_types_with_restrictions
 	"""
-	print("\n" + "="*70)
+	print("\n" + "=" * 70)
 	print("UPDATING LEAVE TYPES WITH RESTRICTIONS")
-	print("="*70 + "\n")
+	print("=" * 70 + "\n")
 
 	# Leave Type specific restrictions
 	leave_type_restrictions = {
@@ -223,18 +224,15 @@ def update_leave_types_with_restrictions():
 		"Maternity Leave": {
 			"custom_gender_specific": "Female",
 		},
-		"Hajj Leave": {
-			"custom_religion_specific": "All (Muslim)",
-			"custom_once_in_service": 1
-		},
+		"Hajj Leave": {"custom_religion_specific": "All (Muslim)", "custom_once_in_service": 1},
 		"Bereavement Leave - Wife (Muslim Female)": {
 			"custom_gender_specific": "Female",
-			"custom_religion_specific": "All (Muslim)"
+			"custom_religion_specific": "All (Muslim)",
 		},
 		"Bereavement Leave - Wife (Non-Muslim Female)": {
 			"custom_gender_specific": "Female",
-			"custom_religion_specific": "Non-Muslim"
-		}
+			"custom_religion_specific": "Non-Muslim",
+		},
 	}
 
 	updated_count = 0
@@ -260,14 +258,10 @@ def update_leave_types_with_restrictions():
 
 	frappe.db.commit()
 
-	print("\n" + "="*70)
+	print("\n" + "=" * 70)
 	print(f"✅ UPDATE COMPLETE")
 	print(f"   Updated: {updated_count}")
 	print(f"   Failed: {failed_count}")
-	print("="*70 + "\n")
+	print("=" * 70 + "\n")
 
-	return {
-		"status": "success",
-		"updated_count": updated_count,
-		"failed_count": failed_count
-	}
+	return {"status": "success", "updated_count": updated_count, "failed_count": failed_count}

@@ -9,10 +9,10 @@ from erpnext.setup.doctype.department.department import Department
 class CustomDepartment(Department):
 	"""
 	Custom Department class that overrides the default naming behavior.
-	Instead of appending company abbreviation (e.g., "sss - H"), 
+	Instead of appending company abbreviation (e.g., "sss - H"),
 	it keeps the department name as entered (e.g., "sss").
 	"""
-	
+
 	def autoname(self):
 		"""
 		Override the default autoname method to prevent company abbreviation
