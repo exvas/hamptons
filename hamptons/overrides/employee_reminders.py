@@ -16,8 +16,8 @@ def send_work_anniversary_reminders():
 	if not to_send:
 		return
 
-	sender = frappe.db.get_single_value("HR Settings", "sender_email")
-	employees_joined_today = get_active_employees_with_anniversary_today()
+	sender = frappe.db.get_single_value("HR Settings", "sender_email")  # noqa: F841
+	employees_joined_today = get_active_employees_with_anniversary_today()  # noqa: F841
 
 	# Work anniversary email reminders are disabled
 	return

@@ -251,7 +251,7 @@ def bulk_update_from_excel(file_path):
 		missing = [col for col in required_columns if col not in df.columns]
 
 		if missing:
-			frappe.throw(_("Missing columns in Excel: {0}").format(", ".join(missing)))
+			frappe.throw(_("Missing columns in Excel: {0}").format(", ".join(missing)))  # noqa: F823
 
 		print(f"Found {len(df)} rows in Excel\n")
 

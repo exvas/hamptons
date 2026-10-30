@@ -214,7 +214,7 @@ def override_leave_control_panel(*args):
 
 		# Patch Leave Policy Assignment to check eligibility and handle skipped leaves
 		original_create_allocation = LeavePolicyAssignment.create_leave_allocation
-		original_grant_leave = LeavePolicyAssignment.grant_leave_alloc_for_employee
+		original_grant_leave = LeavePolicyAssignment.grant_leave_alloc_for_employee  # noqa: F841
 
 		def patched_create_leave_allocation(self, annual_allocation, leave_details, date_of_joining):
 			"""Check eligibility before creating allocation"""

@@ -108,7 +108,7 @@ def test_individual_api_config(api_url, api_key, config_row_name, config_name=No
 						dt = parser.parse(expires_raw)
 						# Convert to MySQL datetime format (YYYY-MM-DD HH:MM:SS)
 						expires_formatted = dt.strftime("%Y-%m-%d %H:%M:%S")
-					except:
+					except Exception:
 						expires_formatted = None
 
 				return {
@@ -244,7 +244,7 @@ def check_and_refresh_token():
 						# Refresh if expires within next 30 minutes
 						if (expires_dt - now_datetime()).total_seconds() <= 1800:
 							needs_refresh = True
-					except:
+					except Exception:
 						needs_refresh = True
 
 				if needs_refresh:
@@ -300,7 +300,7 @@ def sync_individual_device(api_url, api_key, config_row_name, config_name=None):
 				expires_dt = get_datetime(token_expires)
 				if expires_dt > now_datetime():
 					needs_new_token = False
-			except:
+			except Exception:
 				pass
 
 		# Generate new token if needed
@@ -349,7 +349,7 @@ def sync_individual_device(api_url, api_key, config_row_name, config_name=None):
 							dt = parser.parse(expires_raw)
 							expires_formatted = dt.strftime("%Y-%m-%d %H:%M:%S")
 							config_doc.db_set("token_expires", expires_formatted, update_modified=False)
-						except:
+						except Exception:
 							pass
 
 					config_doc.db_set("last_token_generated", now_datetime(), update_modified=False)
@@ -382,7 +382,7 @@ def sync_individual_device(api_url, api_key, config_row_name, config_name=None):
 				else:
 					# Last sync was yesterday or earlier - fetch from that date's start
 					begin_time = datetime.combine(last_sync_dt.date(), datetime.min.time())
-			except:
+			except Exception:
 				# Fallback: fetch last 7 days
 				begin_time = end_time - timedelta(days=7)
 		else:

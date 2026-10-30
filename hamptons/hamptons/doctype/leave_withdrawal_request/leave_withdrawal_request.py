@@ -143,7 +143,7 @@ class LeaveWithdrawalRequest(Document):
 					""",
 						lle_name,
 					)
-				except:
+				except Exception:
 					pass
 			frappe.db.commit()
 		except Exception as e:

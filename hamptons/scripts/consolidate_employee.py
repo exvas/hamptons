@@ -133,11 +133,11 @@ def process_employee_checkins(employee, checkins, date, shift_name):
 	shift = frappe.get_doc("Shift Type", shift_name)
 
 	first_in = checkins[0]["time"]
-	last_out = checkins[-1]["time"]
+	last_out = checkins[-1]["time"]  # noqa: F841
 
 	# Shift times as datetime
 	shift_start = datetime.combine(date, (datetime.min + shift.start_time).time())
-	shift_end = datetime.combine(date, (datetime.min + shift.end_time).time())
+	shift_end = datetime.combine(date, (datetime.min + shift.end_time).time())  # noqa: F841
 
 	# Check for existing draft regularization
 	existing_reg = frappe.db.get_value(

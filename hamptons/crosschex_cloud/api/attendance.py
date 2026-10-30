@@ -113,7 +113,7 @@ def make_attendace(**kwargs):
 
 
 def create_attendance_log(args):
-	if type(args) == str:
+	if type(args) == str:  # noqa: E721
 		args = json.loads(args)
 
 	processed_count = 0

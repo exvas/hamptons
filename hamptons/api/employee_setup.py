@@ -332,7 +332,7 @@ def _run_step(step, savepoint: str, context: str) -> dict:
 		frappe.db.rollback(save_point=savepoint)
 		del frappe.message_log[messages_before:]
 
-		if isinstance(e, (frappe.ValidationError, frappe.PermissionError)):
+		if isinstance(e, (frappe.ValidationError, frappe.PermissionError)):  # noqa: UP038
 			message = str(e)
 		else:
 			frappe.log_error(title=f"Employee Setup failed: {context}", message=frappe.get_traceback())

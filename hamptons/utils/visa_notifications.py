@@ -62,7 +62,7 @@ def send_visa_expiry_alerts():
 		return
 
 	# Build email content
-	subject = _("Family Visa Expiry Alert - {0} Record(s)").format(len(expiring))
+	subject = _("Family Visa Expiry Alert - {0} Record(s)").format(len(expiring))  # noqa: F841
 
 	rows = ""
 	for rec in expiring:
@@ -110,7 +110,7 @@ def send_visa_expiry_alerts():
 		</tbody>
 	</table>
 	<p style="margin-top: 15px; color: #666;">This is an automated alert from Hamptons HRMS.</p>
-	"""
+	"""  # noqa: F841
 
 	# Visa expiry email notifications are disabled
 	frappe.logger().info(

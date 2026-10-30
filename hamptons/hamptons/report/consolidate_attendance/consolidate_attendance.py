@@ -419,7 +419,7 @@ def get_data(filters):
 				try:
 					in_time_obj = get_time(att_record["att_in_time"])
 					in_time_str = in_time_obj.strftime("%I:%M %p")
-				except:
+				except Exception:
 					pass
 			if att_record.get("att_out_time"):
 				try:
@@ -433,7 +433,7 @@ def get_data(filters):
 							out_time_str = ""
 					else:
 						out_time_str = out_time_obj.strftime("%I:%M %p")
-				except:
+				except Exception:
 					out_time_str = ""
 
 			checkin_lookup[key] = {
@@ -519,7 +519,7 @@ def get_data(filters):
             AND from_date <= %s
             AND to_date >= %s
         """,
-			employees_list + [filters.to_date, filters.from_date],
+			employees_list + [filters.to_date, filters.from_date],  # noqa: RUF005
 			as_dict=True,
 		)
 
@@ -553,7 +553,7 @@ def get_data(filters):
                 WHERE e.name IN ({placeholders})
                 AND h.holiday_date BETWEEN %s AND %s
             """,
-				employees_list + [filters.from_date, filters.to_date],
+				employees_list + [filters.from_date, filters.to_date],  # noqa: RUF005
 				as_dict=True,
 			)
 
@@ -601,7 +601,7 @@ def get_data(filters):
                 AND sa.start_date <= %s
                 ORDER BY sa.employee, sa.start_date DESC
             """,
-				employees_list + [filters.to_date],
+				employees_list + [filters.to_date],  # noqa: RUF005
 				as_dict=True,
 			)
 
@@ -655,7 +655,7 @@ def get_data(filters):
 		original_break_hours = break_hours_seconds
 
 		# Validate and convert working hours (handle corrupted data)
-		if isinstance(work_hours_seconds, (int, float)):
+		if isinstance(work_hours_seconds, (int, float)):  # noqa: UP038
 			# Check for unreasonable values (more than 24 hours = 86400 seconds or negative values)
 			if work_hours_seconds > 86400 or work_hours_seconds < 0:
 				work_hours_seconds = 0  # Reset corrupted data
@@ -665,7 +665,7 @@ def get_data(filters):
 			work_hours_seconds = 0
 
 		# Enhanced break hours validation with negative handling
-		if isinstance(break_hours_seconds, (int, float)):
+		if isinstance(break_hours_seconds, (int, float)):  # noqa: UP038
 			# If break hours are negative, it indicates a calculation error
 			if break_hours_seconds < 0:
 				# Store the negative value for reference but don't use in calculations

@@ -196,7 +196,7 @@ def fix_incorrect_regularizations(dry_run=False):
 	frappe.logger().info(f"Found {len(incorrect_regs)} regularizations to fix\n")
 
 	fixed_count = 0
-	deleted_count = 0
+	deleted_count = 0  # noqa: F841
 	error_count = 0
 	results = []
 

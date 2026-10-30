@@ -83,7 +83,7 @@ def manual_sync_crosschex_cloud():
 			crosschex_doc = frappe.get_single("Crosschex Settings")
 			crosschex_doc.db_set("last_sync_status", f"Error: {e!s}", update_modified=False)
 			frappe.db.commit()
-		except:
+		except Exception:
 			pass
 
 		return {"success": False, "error": f"Sync failed: {e!s}"}

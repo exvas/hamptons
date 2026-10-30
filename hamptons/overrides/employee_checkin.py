@@ -767,7 +767,7 @@ def consolidate_attendance_for_date(processing_date):
 		needs_regularization = result["needs_regularization"]
 		late_time_val = result["late_time"]
 
-		late_enabled = bool(getattr(shift_type, "enable_late_entry_marking", False))
+		late_enabled = bool(getattr(shift_type, "enable_late_entry_marking", False))  # noqa: F841
 
 		# Calculate working hours for Half Day detection
 		working_hours = 0
