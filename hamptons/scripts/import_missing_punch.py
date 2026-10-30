@@ -3,8 +3,9 @@
 Script to manually import a missing punch from CrossChex Cloud.
 """
 
-import frappe
 from datetime import datetime
+
+import frappe
 from dateutil import parser, tz
 
 
@@ -19,7 +20,7 @@ def import_missing_punch(employee_device_id, checktime_utc, uuid, device_name="H
 	    device_name: Device name
 	"""
 	print(f"\n{'='*70}")
-	print(f"IMPORTING MISSING PUNCH")
+	print("IMPORTING MISSING PUNCH")
 	print(f"{'='*70}")
 
 	# Check if UUID already exists
@@ -101,7 +102,7 @@ def check_and_trigger_consolidation(employee_id, date_str):
 	After importing, trigger attendance consolidation for the employee/date.
 	"""
 	print(f"\n{'='*70}")
-	print(f"TRIGGERING ATTENDANCE CONSOLIDATION")
+	print("TRIGGERING ATTENDANCE CONSOLIDATION")
 	print(f"{'='*70}")
 
 	from datetime import datetime as dt

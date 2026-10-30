@@ -1,10 +1,11 @@
 # Copyright (c) 2024, Momscode and contributors
 # For license information, please see license.txt
 
+from datetime import datetime, timedelta
+
 import frappe
 from frappe import _
-from frappe.utils import getdate, get_datetime
-from datetime import datetime, timedelta
+from frappe.utils import get_datetime, getdate
 
 
 def infer_log_type_from_sequence(checkins, strategy="alternating"):
@@ -275,8 +276,9 @@ def calculate_late_early_times(first_in_time, last_out_time, shift_type, process
 			'needs_regularization': bool
 		}
 	"""
-	from frappe.utils import get_time
 	from datetime import time as dt_time
+
+	from frappe.utils import get_time
 
 	late_time = None
 	early_exit_time = None

@@ -3,7 +3,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import now_datetime, get_datetime, getdate, add_days, formatdate, get_time_str
+from frappe.utils import add_days, formatdate, get_datetime, get_time_str, getdate, now_datetime
 
 
 @frappe.whitelist()
@@ -29,7 +29,7 @@ def get_checkin_dashboard_data(date=None):
 	# Get today's check-ins with employee details
 	checkins_today = frappe.db.sql(
 		"""
-		SELECT 
+		SELECT
 			ec.name,
 			ec.employee,
 			ec.employee_name,
@@ -43,8 +43,8 @@ def get_checkin_dashboard_data(date=None):
 			st.end_time
 		FROM `tabEmployee Checkin` ec
 		LEFT JOIN `tabEmployee` emp ON emp.name = ec.employee
-		LEFT JOIN `tabShift Assignment` sa ON sa.employee = ec.employee 
-			AND sa.docstatus = 1 
+		LEFT JOIN `tabShift Assignment` sa ON sa.employee = ec.employee
+			AND sa.docstatus = 1
 			AND sa.start_date <= DATE(ec.time)
 			AND (sa.end_date IS NULL OR sa.end_date >= DATE(ec.time))
 		LEFT JOIN `tabShift Type` st ON st.name = sa.shift_type
@@ -59,7 +59,7 @@ def get_checkin_dashboard_data(date=None):
 	# Get summary stats
 	summary = frappe.db.sql(
 		"""
-		SELECT 
+		SELECT
 			COUNT(DISTINCT employee) as total_employees,
 			COUNT(*) as total_checkins,
 			SUM(CASE WHEN log_type = 'IN' THEN 1 ELSE 0 END) as total_in,
@@ -74,7 +74,7 @@ def get_checkin_dashboard_data(date=None):
 	# Get department-wise breakdown
 	dept_breakdown = frappe.db.sql(
 		"""
-		SELECT 
+		SELECT
 			emp.department,
 			COUNT(DISTINCT ec.employee) as employee_count,
 			COUNT(*) as checkin_count
@@ -91,7 +91,7 @@ def get_checkin_dashboard_data(date=None):
 	# Get pending regularizations
 	pending_regularizations = frappe.db.sql(
 		"""
-		SELECT 
+		SELECT
 			name,
 			employee,
 			employee_name,
@@ -110,7 +110,7 @@ def get_checkin_dashboard_data(date=None):
 	# Get late arrivals today
 	late_arrivals = frappe.db.sql(
 		"""
-		SELECT 
+		SELECT
 			ec.employee,
 			ec.employee_name,
 			emp.department,
@@ -119,8 +119,8 @@ def get_checkin_dashboard_data(date=None):
 			TIMEDIFF(TIME(ec.time), st.start_time) as late_by
 		FROM `tabEmployee Checkin` ec
 		LEFT JOIN `tabEmployee` emp ON emp.name = ec.employee
-		INNER JOIN `tabShift Assignment` sa ON sa.employee = ec.employee 
-			AND sa.docstatus = 1 
+		INNER JOIN `tabShift Assignment` sa ON sa.employee = ec.employee
+			AND sa.docstatus = 1
 			AND sa.start_date <= DATE(ec.time)
 			AND (sa.end_date IS NULL OR sa.end_date >= DATE(ec.time))
 		INNER JOIN `tabShift Type` st ON st.name = sa.shift_type
@@ -200,7 +200,7 @@ def get_employee_checkin_details(employee, from_date=None, to_date=None):
 	# Get check-ins
 	checkins = frappe.db.sql(
 		"""
-		SELECT 
+		SELECT
 			ec.name,
 			ec.time,
 			ec.log_type,
@@ -210,7 +210,7 @@ def get_employee_checkin_details(employee, from_date=None, to_date=None):
 			ar.name as regularization,
 			ar.status as regularization_status
 		FROM `tabEmployee Checkin` ec
-		LEFT JOIN `tabAttendance Regularization` ar ON ar.employee = ec.employee 
+		LEFT JOIN `tabAttendance Regularization` ar ON ar.employee = ec.employee
 			AND ar.posting_date = DATE(ec.time)
 		WHERE ec.employee = %s
 			AND DATE(ec.time) BETWEEN %s AND %s
@@ -276,7 +276,7 @@ def get_device_usage_stats(from_date=None, to_date=None):
 
 	device_stats = frappe.db.sql(
 		"""
-		SELECT 
+		SELECT
 			device_id,
 			COUNT(*) as total_checkins,
 			COUNT(DISTINCT employee) as unique_employees,

@@ -2,8 +2,8 @@
 # License: MIT
 
 import frappe
-from frappe.utils.nestedset import get_root_of
 from erpnext.setup.doctype.department.department import Department
+from frappe.utils.nestedset import get_root_of
 
 
 class CustomDepartment(Department):

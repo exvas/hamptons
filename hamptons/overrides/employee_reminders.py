@@ -1,8 +1,7 @@
 import frappe
+from erpnext.setup.doctype.employee.employee import get_all_employee_emails, get_employee_email
 from frappe import _
 from frappe.utils import getdate, today
-
-from erpnext.setup.doctype.employee.employee import get_all_employee_emails, get_employee_email
 
 
 def send_work_anniversary_reminders():

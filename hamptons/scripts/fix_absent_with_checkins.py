@@ -73,7 +73,7 @@ def fix_incorrect_absents(days_back=30, dry_run=False):
 	days_back = int(days_back)
 	dry_run = bool(int(dry_run)) if isinstance(dry_run, str) else bool(dry_run)
 
-	frappe.logger().info(f"\n=== Fixing Incorrect 'Absent' Records ===")
+	frappe.logger().info("\n=== Fixing Incorrect 'Absent' Records ===")
 	frappe.logger().info(f"Scanning last {days_back} days...")
 	if dry_run:
 		frappe.logger().info("DRY RUN MODE - No changes will be made\n")
@@ -115,12 +115,12 @@ def fix_incorrect_absents(days_back=30, dry_run=False):
 		except Exception as e:
 			error_count += 1
 			frappe.log_error(message=str(e), title=f"Cancel Attendance Error - {rec['name']}")
-			frappe.logger().error(f"  ✗ Error cancelling {rec['name']}: {str(e)}")
+			frappe.logger().error(f"  ✗ Error cancelling {rec['name']}: {e!s}")
 
 	frappe.db.commit()
 
 	# Re-process affected dates
-	frappe.logger().info(f"\nRe-processing affected dates...\n")
+	frappe.logger().info("\nRe-processing affected dates...\n")
 	affected_dates = list(set([rec["attendance_date"] for rec in incorrect_absents]))
 	affected_dates.sort(reverse=True)
 
@@ -139,9 +139,9 @@ def fix_incorrect_absents(days_back=30, dry_run=False):
 		except Exception as e:
 			reprocess_errors += 1
 			frappe.log_error(message=str(e), title=f"Re-process Date Error - {date}")
-			frappe.logger().error(f"  ✗ Error processing {date}: {str(e)}")
+			frappe.logger().error(f"  ✗ Error processing {date}: {e!s}")
 
-	frappe.logger().info(f"\n=== Fix Complete ===")
+	frappe.logger().info("\n=== Fix Complete ===")
 	frappe.logger().info(f"Cancelled: {cancelled_count} attendance records")
 	frappe.logger().info(f"Cancel Errors: {error_count}")
 	frappe.logger().info(f"Re-processed: {processed_count} dates")

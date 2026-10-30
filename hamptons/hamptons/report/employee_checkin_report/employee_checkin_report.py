@@ -3,7 +3,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import getdate, get_datetime, formatdate, get_time_str
+from frappe.utils import formatdate, get_datetime, get_time_str, getdate
 
 
 def execute(filters=None):
@@ -310,8 +310,8 @@ def get_conditions(filters):
 		conditions.append("""
 			EXISTS (
 				SELECT 1 FROM `tabEmployee Checkin` ec2
-				INNER JOIN `tabShift Assignment` sa2 ON sa2.employee = ec2.employee 
-					AND sa2.docstatus = 1 
+				INNER JOIN `tabShift Assignment` sa2 ON sa2.employee = ec2.employee
+					AND sa2.docstatus = 1
 					AND sa2.start_date <= DATE(ec2.time)
 					AND (sa2.end_date IS NULL OR sa2.end_date >= DATE(ec2.time))
 				INNER JOIN `tabShift Type` st2 ON st2.name = sa2.shift_type

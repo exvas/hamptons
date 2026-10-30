@@ -12,9 +12,10 @@ This script:
 4. Optionally deletes regularizations that shouldn't exist (on-time employees)
 """
 
-import frappe
 from datetime import datetime, timedelta
-from frappe.utils import getdate, get_datetime, get_time
+
+import frappe
+from frappe.utils import get_datetime, get_time, getdate
 
 
 def get_creation_time_as_timedelta(creation):
@@ -180,7 +181,7 @@ def fix_incorrect_regularizations(dry_run=False):
 
 	dry_run = bool(int(dry_run)) if isinstance(dry_run, str) else bool(dry_run)
 
-	frappe.logger().info(f"\n=== Fixing Incorrect Late Values ===")
+	frappe.logger().info("\n=== Fixing Incorrect Late Values ===")
 	if dry_run:
 		frappe.logger().info("DRY RUN MODE - No changes will be made\n")
 
@@ -242,12 +243,12 @@ def fix_incorrect_regularizations(dry_run=False):
 		except Exception as e:
 			error_count += 1
 			frappe.log_error(message=str(e), title=f"Fix Late Value Error - {reg_data['name']}")
-			frappe.logger().error(f"  Error fixing {reg_data['name']}: {str(e)}")
+			frappe.logger().error(f"  Error fixing {reg_data['name']}: {e!s}")
 
 	if not dry_run:
 		frappe.db.commit()
 
-	frappe.logger().info(f"\n=== Fix Complete ===")
+	frappe.logger().info("\n=== Fix Complete ===")
 	frappe.logger().info(f"Fixed: {fixed_count}")
 	frappe.logger().info(f"Errors: {error_count}")
 

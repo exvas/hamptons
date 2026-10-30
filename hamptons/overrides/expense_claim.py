@@ -149,4 +149,4 @@ def _log_workflow_action(doc, from_state, to_state):
 			to_state=to_state,
 		)
 	except Exception as e:
-		frappe.logger().error(f"Failed to log workflow action for {doc.name}: {str(e)}")
+		frappe.logger().error(f"Failed to log workflow action for {doc.name}: {e!s}")

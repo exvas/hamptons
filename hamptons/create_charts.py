@@ -150,7 +150,7 @@ def create_dashboard_charts():
 			frappe.db.commit()
 
 		except Exception as e:
-			print(f"✗ Error with chart '{chart_name}': {str(e)}")
+			print(f"✗ Error with chart '{chart_name}': {e!s}")
 			frappe.db.rollback()
 			import traceback
 

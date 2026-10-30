@@ -6,8 +6,9 @@ Usage:
     bench --site hrms.hamptons.om execute hamptons.scripts.fix_late_synced_regularizations.fix_all_affected_dates
 """
 
-import frappe
 from datetime import timedelta
+
+import frappe
 from frappe.utils import getdate
 
 
@@ -55,7 +56,7 @@ def fix_date(processing_date):
 		return stats
 	except Exception as e:
 		frappe.log_error(message=str(e), title=f"Fix Date Error - {processing_date}")
-		frappe.logger().error(f"Error fixing {processing_date}: {str(e)}")
+		frappe.logger().error(f"Error fixing {processing_date}: {e!s}")
 		return None
 
 
@@ -73,7 +74,7 @@ def fix_all_affected_dates(days_back=30):
 	# Convert to int if passed as string from web
 	days_back = int(days_back)
 
-	frappe.logger().info(f"\n=== Starting Late-Sync Regularization Fix ===")
+	frappe.logger().info("\n=== Starting Late-Sync Regularization Fix ===")
 	frappe.logger().info(f"Scanning last {days_back} days...\n")
 
 	# Find affected dates
@@ -102,7 +103,7 @@ def fix_all_affected_dates(days_back=30):
 		# Commit after each date to avoid long transactions
 		frappe.db.commit()
 
-	frappe.logger().info(f"\n=== Fix Complete ===")
+	frappe.logger().info("\n=== Fix Complete ===")
 	frappe.logger().info(f"Dates fixed: {fixed_count}")
 	frappe.logger().info(f"Errors: {error_count}")
 
@@ -145,7 +146,7 @@ if __name__ == "__main__":
 
 	result = fix_all_affected_dates(days_back=30)
 	print(f"\n{result['message']}")
-	print(f"\nSummary:")
+	print("\nSummary:")
 	for item in result.get("summary", []):
 		print(f"  {item['date']}: Present={item.get('present', 0)}, Reg={item.get('regularizations', 0)}")
 

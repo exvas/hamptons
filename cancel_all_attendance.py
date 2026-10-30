@@ -23,7 +23,7 @@ def cancel_all():
 			if idx % 100 == 0:
 				print(f"Progress: {idx}/{total}")
 				frappe.db.commit()
-		except Exception as e:
+		except Exception:
 			failed += 1
 
 	frappe.db.commit()

@@ -1,6 +1,7 @@
-import frappe
 import json
 from datetime import datetime
+
+import frappe
 
 logMap = {0: "IN", 1: "OUT", 128: "IN", 129: "OUT"}
 
@@ -62,7 +63,7 @@ def debug_table_structure():
 		return columns
 	except Exception as e:
 		frappe.log_error(
-			message=f"Error checking table structure: {str(e)}",
+			message=f"Error checking table structure: {e!s}",
 			title="CrossChex Debug - Table Structure Error",
 		)
 		return None
@@ -108,7 +109,7 @@ def make_attendace(**kwargs):
 	except Exception as e:
 		frappe.log_error(message=str(e), title="CrossChex Webhook")
 		frappe.local.response["status_code"] = 200  # Return 200 to prevent webhook retries
-		frappe.local.response["message"] = f"Processed with warnings: {str(e)}"
+		frappe.local.response["message"] = f"Processed with warnings: {e!s}"
 
 
 def create_attendance_log(args):
@@ -200,7 +201,7 @@ def create_attendance_log(args):
 					# Fallback to current time if parsing fails
 					checkin_time = datetime.now()
 					frappe.log_error(
-						message=f"Error parsing checktime '{checktime_str}': {str(parse_error)}",
+						message=f"Error parsing checktime '{checktime_str}': {parse_error!s}",
 						title="CrossChex Webhook - Time Parse Error",
 					)
 			else:
@@ -233,7 +234,7 @@ def create_attendance_log(args):
 							shift = shift_assignment
 				except Exception as shift_error:
 					frappe.log_error(
-						message=f"Error finding shift assignment for employee {employee}: {str(shift_error)}",
+						message=f"Error finding shift assignment for employee {employee}: {shift_error!s}",
 						title="CrossChex Webhook - Shift Lookup Error",
 					)
 
@@ -302,14 +303,14 @@ def create_attendance_log(args):
 			except Exception as insert_error:
 				error_count += 1
 				frappe.log_error(
-					message=f"Error inserting checkin for employee {employee}: {str(insert_error)}\nData: {json.dumps(i)}",
+					message=f"Error inserting checkin for employee {employee}: {insert_error!s}\nData: {json.dumps(i)}",
 					title="CrossChex Webhook - Insert Error",
 				)
 
 		except Exception as e:
 			error_count += 1
 			frappe.log_error(
-				message=f"Error processing attendance for employee {attn_id if 'attn_id' in locals() else 'unknown'}: {str(e)}\nData: {json.dumps(i)}",
+				message=f"Error processing attendance for employee {attn_id if 'attn_id' in locals() else 'unknown'}: {e!s}\nData: {json.dumps(i)}",
 				title="CrossChex Webhook - Processing Error",
 			)
 

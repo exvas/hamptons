@@ -11,7 +11,8 @@ Expected: 3 checkins marked as IN, should be inferred as IN-OUT-IN
 
 import frappe
 from frappe.utils import getdate
-from hamptons.overrides.attendance_utils import infer_log_type_from_sequence, get_first_in_last_out
+
+from hamptons.overrides.attendance_utils import get_first_in_last_out, infer_log_type_from_sequence
 
 
 def test_inference_logic():
@@ -96,12 +97,12 @@ def test_actual_employee_data():
 	if first_in:
 		print(f"  ✓ First IN:  {first_in['time']} ({first_in.get('inferred_log_type')})")
 	else:
-		print(f"  ❌ First IN:  Not found")
+		print("  ❌ First IN:  Not found")
 
 	if last_out:
 		print(f"  ✓ Last OUT:  {last_out['time']} ({last_out.get('inferred_log_type')})")
 	else:
-		print(f"  ❌ Last OUT:  Not found")
+		print("  ❌ Last OUT:  Not found")
 
 	frappe.destroy()
 
@@ -153,7 +154,7 @@ def test_reprocess_regularization():
 			# Infer and consolidate
 			first_in, last_out = get_first_in_last_out(checkins, use_inferred=True)
 
-			print(f"\n   New consolidated checkins:")
+			print("\n   New consolidated checkins:")
 			if first_in:
 				print(f"     ✓ First IN:  {first_in['time']} ({first_in.get('inferred_log_type')})")
 			if last_out:
@@ -170,14 +171,14 @@ def test_reprocess_regularization():
 				getdate(reg.posting_date),
 			)
 
-			print(f"\n   Late/Early Calculation:")
+			print("\n   Late/Early Calculation:")
 			print(f"     Late Time: {result['late_time']}")
 			print(f"     Early Exit: {result['early_exit_time']}")
 			print(f"     Needs Regularization: {result['needs_regularization']}")
 
 			# Update the regularization
-			print(f"\n🔄 Would update regularization with:")
-			print(f"     - Clear existing items")
+			print("\n🔄 Would update regularization with:")
+			print("     - Clear existing items")
 			print(f"     - Add First IN: {first_in['time']} ({first_in.get('inferred_log_type')})")
 			print(f"     - Add Last OUT: {last_out['time']} ({last_out.get('inferred_log_type')})")
 			print(f"     - Update late time: {result['late_time']}")

@@ -16,7 +16,7 @@ def get_data():
 	# Query to get check-ins grouped by department for today
 	dept_data = frappe.db.sql(
 		"""
-		SELECT 
+		SELECT
 			COALESCE(emp.department, 'Not Assigned') as department,
 			COUNT(DISTINCT ec.employee) as employee_count
 		FROM `tabEmployee Checkin` ec

@@ -1,10 +1,11 @@
 # Copyright (c) 2024, Momscode and contributors
 # For license information, please see license.txt
 
+import json
+
 import frappe
 from frappe import _
-from frappe.utils import flt, getdate, add_days, now_datetime
-import json
+from frappe.utils import add_days, flt, getdate, now_datetime
 
 
 @frappe.whitelist()
@@ -48,7 +49,7 @@ def get_summary_stats(where_clause, values):
 	"""Get summary statistics"""
 
 	query = f"""
-		SELECT 
+		SELECT
 			COUNT(*) as total_checkins,
 			COUNT(DISTINCT ec.employee) as unique_employees,
 			COUNT(DISTINCT ec.device_id) as total_devices
@@ -71,7 +72,7 @@ def get_summary_stats(where_clause, values):
 	prev_from = add_days(from_date, -days)
 	prev_to = add_days(from_date, -1)
 
-	prev_query = f"""
+	prev_query = """
 		SELECT COUNT(*) as prev_count
 		FROM `tabEmployee Checkin` ec
 		LEFT JOIN `tabEmployee` emp ON emp.name = ec.employee
@@ -106,7 +107,7 @@ def get_daily_trend(where_clause, values):
 	"""Get daily check-in trend"""
 
 	query = f"""
-		SELECT 
+		SELECT
 			DATE(ec.time) as date,
 			COUNT(*) as count
 		FROM `tabEmployee Checkin` ec
@@ -123,7 +124,7 @@ def get_checkin_type_distribution(where_clause, values):
 	"""Get check-in vs check-out distribution"""
 
 	query = f"""
-		SELECT 
+		SELECT
 			ec.log_type,
 			COUNT(*) as count
 		FROM `tabEmployee Checkin` ec
@@ -139,7 +140,7 @@ def get_hourly_distribution(where_clause, values):
 	"""Get hourly distribution of check-ins"""
 
 	query = f"""
-		SELECT 
+		SELECT
 			HOUR(ec.time) as hour,
 			COUNT(*) as count
 		FROM `tabEmployee Checkin` ec
@@ -156,7 +157,7 @@ def get_department_wise_stats(where_clause, values):
 	"""Get department-wise check-in statistics"""
 
 	query = f"""
-		SELECT 
+		SELECT
 			emp.department,
 			COUNT(*) as count
 		FROM `tabEmployee Checkin` ec
@@ -174,7 +175,7 @@ def get_top_employees(where_clause, values):
 	"""Get top employees by check-in count"""
 
 	query = f"""
-		SELECT 
+		SELECT
 			ec.employee,
 			emp.employee_name,
 			emp.department,
@@ -196,7 +197,7 @@ def get_device_usage(where_clause, values):
 	"""Get device usage statistics"""
 
 	query = f"""
-		SELECT 
+		SELECT
 			ec.device_id,
 			COUNT(*) as count
 		FROM `tabEmployee Checkin` ec
@@ -240,7 +241,7 @@ def export_to_excel(filters):
 
 	data = frappe.db.sql(
 		f"""
-		SELECT 
+		SELECT
 			ec.time,
 			ec.employee,
 			emp.employee_name,

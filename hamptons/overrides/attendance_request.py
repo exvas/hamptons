@@ -11,7 +11,6 @@ Attendance Request Override
 import frappe
 from frappe import _
 from frappe.utils import add_days, date_diff, get_url_to_form, getdate
-
 from hrms.hr.doctype.attendance_request.attendance_request import AttendanceRequest
 
 
@@ -255,4 +254,4 @@ def _log_workflow_action(doc, from_state, to_state):
 			to_state=to_state,
 		)
 	except Exception as e:
-		frappe.logger().error(f"Failed to log workflow action for {doc.name}: {str(e)}")
+		frappe.logger().error(f"Failed to log workflow action for {doc.name}: {e!s}")

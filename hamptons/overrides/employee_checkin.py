@@ -1,10 +1,11 @@
 # Copyright (c) 2024, Momscode and contributors
 # For license information, please see license.txt
 
+from datetime import datetime, timedelta
+
 import frappe
 from frappe import _
-from frappe.utils import getdate, get_datetime, now_datetime, time_diff_in_hours, get_time
-from datetime import datetime, timedelta
+from frappe.utils import get_datetime, get_time, getdate, now_datetime, time_diff_in_hours
 
 
 def is_holiday_or_weekly_off(employee, check_date):
@@ -449,8 +450,9 @@ def daily_attendance_regularization_job():
 		frappe.logger().info("Skipping daily attendance regularization job: DocType not found on this site")
 		return
 
-	from frappe.utils import getdate
 	from datetime import timedelta
+
+	from frappe.utils import getdate
 
 	today = getdate()
 	lookback_start = today - timedelta(days=30)
@@ -501,8 +503,9 @@ def run_attendance_regularization_sync(days: int = 365, include_yesterday: bool 
 	if not frappe.db.exists("DocType", "Attendance Regularization"):
 		frappe.throw(_("Attendance Regularization DocType is not installed on this site"))
 
-	from frappe.utils import getdate
 	from datetime import timedelta
+
+	from frappe.utils import getdate
 
 	# Enqueue the job to run in background
 	frappe.enqueue(
@@ -531,8 +534,9 @@ def process_attendance_sync_background(days: int = 365, include_yesterday: bool 
 	Background job to process attendance consolidation.
 	This runs in a separate worker to avoid timeout.
 	"""
-	from frappe.utils import getdate
 	from datetime import timedelta
+
+	from frappe.utils import getdate
 
 	end_date = getdate() - timedelta(days=1) if include_yesterday else getdate()
 	start_date = getdate() - timedelta(days=days)
@@ -1063,8 +1067,9 @@ def consolidate_pending_attendance(from_date=None, to_date=None):
 	Returns:
 		dict with processing stats
 	"""
-	from frappe.utils import getdate
 	from datetime import timedelta
+
+	from frappe.utils import getdate
 
 	if not from_date:
 		from_date = getdate() - timedelta(days=90)

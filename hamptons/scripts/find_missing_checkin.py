@@ -3,10 +3,11 @@
 Script to find missing checkins for a specific employee and date.
 """
 
-import frappe
-import requests
 import uuid
 from datetime import datetime
+
+import frappe
+import requests
 
 
 def find_employee_punches(employee_id, date_str):
@@ -92,7 +93,7 @@ def find_employee_punches(employee_id, date_str):
 					)
 
 		except Exception as e:
-			print(f"  Error: {str(e)}")
+			print(f"  Error: {e!s}")
 
 	# Summary
 	print(f"\n{'='*70}")
@@ -137,7 +138,7 @@ def find_employee_punches(employee_id, date_str):
 
 		if missing:
 			print(f"\n{'='*70}")
-			print(f"MISSING PUNCHES (in CrossChex but not in HRMS):")
+			print("MISSING PUNCHES (in CrossChex but not in HRMS):")
 			print(f"{'='*70}")
 			for p in missing:
 				print(f"  Device: {p['device']} | Time: {p['checktime']} | UUID: {p['uuid']}")

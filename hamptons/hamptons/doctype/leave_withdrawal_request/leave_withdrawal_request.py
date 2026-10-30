@@ -4,7 +4,7 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import add_days, nowdate, now_datetime, getdate
+from frappe.utils import add_days, getdate, now_datetime, nowdate
 
 
 class LeaveWithdrawalRequest(Document):
@@ -108,7 +108,7 @@ class LeaveWithdrawalRequest(Document):
 				frappe.db.commit()
 			except Exception as e:
 				# Force cancel via SQL if normal cancel fails
-				frappe.log_error(f"Normal cancel failed for attendance {att_name}: {str(e)}, trying SQL")
+				frappe.log_error(f"Normal cancel failed for attendance {att_name}: {e!s}, trying SQL")
 				try:
 					frappe.db.sql(
 						"""
@@ -120,7 +120,7 @@ class LeaveWithdrawalRequest(Document):
 					)
 					frappe.db.commit()
 				except Exception as sql_e:
-					frappe.log_error(f"SQL cancel also failed for attendance {att_name}: {str(sql_e)}")
+					frappe.log_error(f"SQL cancel also failed for attendance {att_name}: {sql_e!s}")
 
 		# Also check for Leave Ledger Entry linked to this leave application
 		try:
@@ -147,7 +147,7 @@ class LeaveWithdrawalRequest(Document):
 					pass
 			frappe.db.commit()
 		except Exception as e:
-			frappe.log_error(f"Error handling leave ledger entries: {str(e)}")
+			frappe.log_error(f"Error handling leave ledger entries: {e!s}")
 
 		# Now cancel the leave application
 		try:
@@ -161,7 +161,7 @@ class LeaveWithdrawalRequest(Document):
 		except Exception as e:
 			# Force cancel via SQL if normal cancel fails
 			frappe.log_error(
-				f"Normal cancel failed for leave application {self.leave_application}: {str(e)}, trying SQL"
+				f"Normal cancel failed for leave application {self.leave_application}: {e!s}, trying SQL"
 			)
 			try:
 				frappe.db.sql(
@@ -174,7 +174,7 @@ class LeaveWithdrawalRequest(Document):
 				)
 				frappe.db.commit()
 			except Exception as sql_e:
-				frappe.log_error(f"SQL cancel also failed for leave application: {str(sql_e)}")
+				frappe.log_error(f"SQL cancel also failed for leave application: {sql_e!s}")
 				frappe.throw(_("Failed to cancel Leave Application. Please contact administrator."))
 
 		# Always update workflow_state and status to "Cancelled" so the indicator shows correctly

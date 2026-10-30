@@ -11,7 +11,7 @@ app_path = frappe.get_app_path("hamptons")
 
 # Load workspace JSON
 workspace_path = os.path.join(app_path, "hamptons", "workspace", "employee_checkin_dashboard.json")
-with open(workspace_path, "r") as f:
+with open(workspace_path) as f:
 	workspace_data = json.load(f)
 
 # Create or update workspace
@@ -36,7 +36,7 @@ chart_files = [
 chart_path = os.path.join(app_path, "hamptons", "dashboard_chart")
 
 for chart_file in chart_files:
-	with open(os.path.join(chart_path, chart_file), "r") as f:
+	with open(os.path.join(chart_path, chart_file)) as f:
 		chart_data = json.load(f)
 
 	chart_name = chart_data.get("name") or chart_data.get("chart_name")

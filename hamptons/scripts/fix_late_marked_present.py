@@ -11,9 +11,10 @@ This script:
 3. Re-runs consolidation to create proper regularizations
 """
 
-import frappe
 from datetime import datetime, timedelta
-from frappe.utils import getdate, get_datetime
+
+import frappe
+from frappe.utils import get_datetime, getdate
 
 
 def find_late_employees_marked_present(days_back=30, employee=None):
@@ -119,7 +120,7 @@ def fix_late_marked_present(days_back=30, employee=None, dry_run=False):
 	days_back = int(days_back)
 	dry_run = bool(int(dry_run)) if isinstance(dry_run, str) else bool(dry_run)
 
-	frappe.logger().info(f"\n=== Fixing Late Employees Marked as Present ===")
+	frappe.logger().info("\n=== Fixing Late Employees Marked as Present ===")
 	if dry_run:
 		frappe.logger().info("DRY RUN MODE - No changes will be made\n")
 
@@ -164,7 +165,7 @@ def fix_late_marked_present(days_back=30, employee=None, dry_run=False):
 		except Exception as e:
 			error_count += 1
 			frappe.log_error(message=str(e), title=f"Cancel Attendance Error - {record['attendance']}")
-			frappe.logger().error(f"  ✗ Error cancelling {record['attendance']}: {str(e)}")
+			frappe.logger().error(f"  ✗ Error cancelling {record['attendance']}: {e!s}")
 
 	frappe.db.commit()
 
@@ -186,9 +187,9 @@ def fix_late_marked_present(days_back=30, employee=None, dry_run=False):
 		except Exception as e:
 			reprocess_errors += 1
 			frappe.log_error(message=str(e), title=f"Re-process Date Error - {date}")
-			frappe.logger().error(f"  ✗ Error processing {date}: {str(e)}")
+			frappe.logger().error(f"  ✗ Error processing {date}: {e!s}")
 
-	frappe.logger().info(f"\n=== Fix Complete ===")
+	frappe.logger().info("\n=== Fix Complete ===")
 	frappe.logger().info(f"Cancelled: {cancelled_count} attendance records")
 	frappe.logger().info(f"Cancel Errors: {error_count}")
 	frappe.logger().info(f"Re-processed: {processed_count} dates")

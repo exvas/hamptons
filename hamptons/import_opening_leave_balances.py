@@ -6,11 +6,11 @@ Import Opening Leave Balances and Allocate Leaves
 Run using: bench --site [site] execute hamptons.import_opening_leave_balances.allocate_leaves_with_opening_balance
 """
 
-import frappe
-from frappe import _
-from frappe.utils import today, getdate, add_days, add_years
 from datetime import datetime
 
+import frappe
+from frappe import _
+from frappe.utils import add_days, add_years, getdate, today
 
 # Annual Leave opening balances as of November 2025
 OPENING_BALANCES = {
@@ -161,10 +161,10 @@ def create_leave_allocation(
 
 	except Exception as e:
 		frappe.log_error(
-			message=f"Error creating leave allocation for {employee_id} - {leave_type}: {str(e)}",
+			message=f"Error creating leave allocation for {employee_id} - {leave_type}: {e!s}",
 			title="Leave Allocation Error",
 		)
-		print(f"  ✗ Error: {str(e)}")
+		print(f"  ✗ Error: {e!s}")
 		frappe.db.rollback()
 		return None
 
@@ -450,7 +450,7 @@ def allocate_single_employee(employee_id, from_date=None, to_date=None, policy_n
 			failed_count += 1
 
 	print("\n" + "-" * 80)
-	print(f"✅ COMPLETE")
+	print("✅ COMPLETE")
 	print(f"Allocated: {success_count}")
 	print(f"Failed: {failed_count}")
 	print(f"Skipped: {skipped_count}")

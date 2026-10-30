@@ -10,7 +10,7 @@ Leave Application Override
 
 import frappe
 from frappe import _
-from frappe.utils import getdate, add_days, today, get_url_to_form, flt
+from frappe.utils import add_days, flt, get_url_to_form, getdate, today
 from hrms.hr.doctype.leave_application.leave_application import LeaveApplication
 
 
@@ -354,7 +354,7 @@ def _send_notification_to_hod(doc, context, notification_type):
 				now=True,
 			)
 		except Exception as e:
-			frappe.logger().error(f"Leave notification failed for {recipient}: {str(e)}")
+			frappe.logger().error(f"Leave notification failed for {recipient}: {e!s}")
 
 
 def _send_notification_to_employee(email, context, notification_type):
@@ -379,7 +379,7 @@ def _send_notification_to_employee(email, context, notification_type):
 			now=True,
 		)
 	except Exception as e:
-		frappe.logger().error(f"Leave notification failed for {email}: {str(e)}")
+		frappe.logger().error(f"Leave notification failed for {email}: {e!s}")
 
 
 def _get_hod_recipients(doc):
@@ -678,4 +678,4 @@ def _log_workflow_action(doc, from_state, to_state):
 			to_state=to_state,
 		)
 	except Exception as e:
-		frappe.logger().error(f"Failed to log workflow action for {doc.name}: {str(e)}")
+		frappe.logger().error(f"Failed to log workflow action for {doc.name}: {e!s}")

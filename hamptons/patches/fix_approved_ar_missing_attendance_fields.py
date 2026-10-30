@@ -7,7 +7,7 @@ updating in_time, out_time, working_hours, late_entry, early_exit.
 """
 
 import frappe
-from frappe.utils import time_diff_in_hours, getdate
+from frappe.utils import getdate, time_diff_in_hours
 
 
 def execute():

@@ -1,5 +1,5 @@
 import frappe
-from frappe.utils import today, add_years
+from frappe.utils import add_years, today
 
 
 def test_leave_policy_assignment_validation():
@@ -87,7 +87,7 @@ def test_leave_policy_assignment_validation():
 				allocation.delete()
 				frappe.db.commit()
 			else:
-				print(f"  ✅ Created successfully")
+				print("  ✅ Created successfully")
 				success_count += 1
 				# Clean up test allocation
 				allocation.delete()
@@ -98,7 +98,7 @@ def test_leave_policy_assignment_validation():
 				print(f"  ✅ CORRECTLY BLOCKED: {restriction_reason}")
 				skipped_leaves.append({"leave_type": leave_type, "reason": restriction_reason})
 			else:
-				print(f"  ❌ ERROR: Valid allocation blocked!")
+				print("  ❌ ERROR: Valid allocation blocked!")
 				print(f"     Error: {str(e)[:100]}")
 				failed_count += 1
 

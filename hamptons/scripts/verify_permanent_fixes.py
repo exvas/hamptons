@@ -43,6 +43,7 @@ def verify_all_fixes():
 	print("-" * 40)
 	try:
 		import inspect
+
 		from hamptons.overrides.employee_checkin import consolidate_attendance_for_date
 
 		source = inspect.getsource(consolidate_attendance_for_date)
@@ -72,6 +73,7 @@ def verify_all_fixes():
 	print("-" * 40)
 	try:
 		import inspect
+
 		from hamptons.overrides.employee_checkin import on_employee_checkin_submit
 
 		source = inspect.getsource(on_employee_checkin_submit)
@@ -99,6 +101,7 @@ def verify_all_fixes():
 	print("-" * 40)
 	try:
 		import inspect
+
 		from hamptons.overrides.attendance_regularization import (
 			after_insert_attendance_regularization,
 			determine_regularization_reason,
@@ -158,6 +161,7 @@ def verify_all_fixes():
 	print("-" * 40)
 	try:
 		import inspect
+
 		from hamptons.overrides.employee_checkin import consolidate_attendance_for_date
 
 		source = inspect.getsource(consolidate_attendance_for_date)

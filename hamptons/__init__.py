@@ -11,7 +11,7 @@ def _apply_patches():
 	except Exception as e:
 		import frappe
 
-		frappe.logger().error(f"Failed to apply hamptons patches: {str(e)}")
+		frappe.logger().error(f"Failed to apply hamptons patches: {e!s}")
 
 
 # Apply patches on import

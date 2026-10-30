@@ -1,9 +1,10 @@
 # Copyright (c) 2024, sammish and contributors
 # For license information, please see license.txt
 
-import frappe
-from frappe.utils import now_datetime, add_days
 from datetime import timedelta
+
+import frappe
+from frappe.utils import add_days, now_datetime
 
 
 def cleanup_old_logs():
@@ -39,7 +40,7 @@ def cleanup_old_logs():
 		}
 
 	except Exception as e:
-		frappe.logger().error(f"Error during cleanup: {str(e)}")
+		frappe.logger().error(f"Error during cleanup: {e!s}")
 		frappe.log_error(message=str(e), title="Cleanup Old Logs Error")
 		return {"success": False, "error": str(e)}
 
@@ -58,7 +59,7 @@ def delete_old_error_logs(cutoff_date):
 		# Get count before deletion
 		old_logs = frappe.db.sql(
 			"""
-			SELECT name 
+			SELECT name
 			FROM `tabError Log`
 			WHERE creation < %s
 		""",
@@ -90,7 +91,7 @@ def delete_old_error_logs(cutoff_date):
 		return count
 
 	except Exception as e:
-		frappe.logger().error(f"Error deleting old error logs: {str(e)}")
+		frappe.logger().error(f"Error deleting old error logs: {e!s}")
 		raise
 
 
@@ -108,7 +109,7 @@ def delete_old_deleted_documents(cutoff_date):
 		# Get count before deletion
 		old_deleted_docs = frappe.db.sql(
 			"""
-			SELECT name 
+			SELECT name
 			FROM `tabDeleted Document`
 			WHERE creation < %s
 		""",
@@ -140,7 +141,7 @@ def delete_old_deleted_documents(cutoff_date):
 		return count
 
 	except Exception as e:
-		frappe.logger().error(f"Error deleting old deleted documents: {str(e)}")
+		frappe.logger().error(f"Error deleting old deleted documents: {e!s}")
 		raise
 
 
@@ -193,7 +194,7 @@ def delete_all_error_logs():
 		}
 
 	except Exception as e:
-		frappe.logger().error(f"Error deleting all error logs: {str(e)}")
+		frappe.logger().error(f"Error deleting all error logs: {e!s}")
 		frappe.log_error(message=str(e), title="Delete All Error Logs Error")
 		return {"success": False, "error": str(e)}
 

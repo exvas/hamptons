@@ -4,12 +4,13 @@
 # Copyright (c) 2025, sammish and contributors
 # For license information, please see license.txt
 
-import frappe
-from frappe.model.document import Document
-from frappe.utils import now_datetime, get_datetime
-import requests
 import json
 from datetime import datetime, timedelta
+
+import frappe
+import requests
+from frappe.model.document import Document
+from frappe.utils import get_datetime, now_datetime
 
 
 class CrosschexSettings(Document):
@@ -49,7 +50,7 @@ def test_individual_api_config(api_url, api_key, config_row_name, config_name=No
 			config_doc = frappe.get_doc("CrossChex API Configuration", config_row_name)
 			api_secret = config_doc.get_password("api_secret")
 		except Exception as e:
-			return {"success": False, "error": f"Failed to retrieve API Secret: {str(e)}"}
+			return {"success": False, "error": f"Failed to retrieve API Secret: {e!s}"}
 
 		if not api_secret:
 			return {
@@ -154,7 +155,7 @@ def get_crosschex_status():
 		}
 
 	except Exception as e:
-		return {"error": f"Error getting status: {str(e)}"}
+		return {"error": f"Error getting status: {e!s}"}
 
 
 def scheduled_attendance_sync():
@@ -197,8 +198,8 @@ def scheduled_attendance_sync():
 
 			except Exception as e:
 				total_errors += 1
-				sync_results.append(f"{config.configuration_name}: Exception - {str(e)}")
-				frappe.logger().error(f"Error syncing device {config.configuration_name}: {str(e)}")
+				sync_results.append(f"{config.configuration_name}: Exception - {e!s}")
+				frappe.logger().error(f"Error syncing device {config.configuration_name}: {e!s}")
 
 		# Update settings with sync summary
 		status_message = (
@@ -210,7 +211,7 @@ def scheduled_attendance_sync():
 		frappe.db.commit()
 
 	except Exception as e:
-		frappe.logger().error(f"Error in scheduled_attendance_sync: {str(e)}")
+		frappe.logger().error(f"Error in scheduled_attendance_sync: {e!s}")
 
 
 def check_and_refresh_token():
@@ -257,10 +258,10 @@ def check_and_refresh_token():
 					frappe.logger().info(f"Token refreshed for {config.configuration_name}")
 
 			except Exception as e:
-				frappe.logger().error(f"Error refreshing token for {config.configuration_name}: {str(e)}")
+				frappe.logger().error(f"Error refreshing token for {config.configuration_name}: {e!s}")
 
 	except Exception as e:
-		frappe.logger().error(f"Error in check_and_refresh_token: {str(e)}")
+		frappe.logger().error(f"Error in check_and_refresh_token: {e!s}")
 
 
 @frappe.whitelist()
@@ -268,6 +269,7 @@ def sync_individual_device(api_url, api_key, config_row_name, config_name=None):
 	"""Sync attendance data from a specific CrossChex device configuration"""
 	try:
 		import uuid
+
 		from hamptons.crosschex_cloud.api.attendance import create_attendance_log
 
 		# Retrieve the actual password from the child table row
@@ -275,7 +277,7 @@ def sync_individual_device(api_url, api_key, config_row_name, config_name=None):
 			config_doc = frappe.get_doc("CrossChex API Configuration", config_row_name)
 			api_secret = config_doc.get_password("api_secret")
 		except Exception as e:
-			return {"success": False, "error": f"Failed to retrieve API Secret: {str(e)}"}
+			return {"success": False, "error": f"Failed to retrieve API Secret: {e!s}"}
 
 		if not api_secret:
 			return {
@@ -535,9 +537,9 @@ def sync_individual_device(api_url, api_key, config_row_name, config_name=None):
 				create_attendance_log([transformed_record])
 				processed_count += 1
 			except Exception as e:
-				errors.append(f"Error processing record: {str(e)}")
+				errors.append(f"Error processing record: {e!s}")
 				frappe.log_error(
-					message=f"Failed to process record: {json.dumps(record, indent=2)}\nError: {str(e)}",
+					message=f"Failed to process record: {json.dumps(record, indent=2)}\nError: {e!s}",
 					title="CrossChex Sync - Record Processing Error",
 				)
 				continue
@@ -554,5 +556,5 @@ def sync_individual_device(api_url, api_key, config_row_name, config_name=None):
 		}
 
 	except Exception as e:
-		frappe.log_error(f"Individual device sync failed: {str(e)}", "CrossChex Sync Error")
+		frappe.log_error(f"Individual device sync failed: {e!s}", "CrossChex Sync Error")
 		return {"success": False, "error": str(e)}

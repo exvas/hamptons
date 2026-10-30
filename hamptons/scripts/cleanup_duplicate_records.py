@@ -86,12 +86,12 @@ def cleanup_duplicate_records(dry_run=False):
 		except Exception as e:
 			error_count += 1
 			frappe.log_error(message=str(e), title=f"Delete Regularization Error - {dup['regularization']}")
-			frappe.logger().error(f"    Error deleting: {str(e)}")
+			frappe.logger().error(f"    Error deleting: {e!s}")
 
 	if not dry_run:
 		frappe.db.commit()
 
-	frappe.logger().info(f"\n=== Cleanup Complete ===")
+	frappe.logger().info("\n=== Cleanup Complete ===")
 	frappe.logger().info(f"Deleted: {deleted_count}")
 	frappe.logger().info(f"Errors: {error_count}")
 

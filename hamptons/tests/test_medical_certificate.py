@@ -11,7 +11,7 @@ import json
 import frappe
 from frappe.utils import add_days, getdate, today
 
-from hamptons.tests.test_leave_pending_balance import _run_check, _assert
+from hamptons.tests.test_leave_pending_balance import _assert, _run_check
 
 CERT_TYPES = ("Sick Leave", "Caregiver leave")
 

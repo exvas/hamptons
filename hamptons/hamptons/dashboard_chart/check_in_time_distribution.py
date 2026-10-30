@@ -3,7 +3,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import now_datetime, get_datetime, getdate
+from frappe.utils import get_datetime, getdate, now_datetime
 
 
 def get_data():
@@ -16,7 +16,7 @@ def get_data():
 	# Query to get check-ins grouped by hour for today
 	checkins = frappe.db.sql(
 		"""
-		SELECT 
+		SELECT
 			HOUR(time) as hour,
 			COUNT(*) as count,
 			log_type

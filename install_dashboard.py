@@ -4,10 +4,11 @@ Install Employee Check-in Dashboard
 This script creates the workspace and dashboard charts in the database
 """
 
-import frappe
-from frappe import _
 import json
 import os
+
+import frappe
+from frappe import _
 
 
 def install_dashboard():
@@ -23,7 +24,7 @@ def install_dashboard():
 	workspace_path = os.path.join(app_path, "hamptons", "workspace", "employee_checkin_dashboard.json")
 
 	try:
-		with open(workspace_path, "r") as f:
+		with open(workspace_path) as f:
 			workspace_data = json.load(f)
 
 		# Check if workspace already exists
@@ -40,7 +41,7 @@ def install_dashboard():
 		frappe.db.commit()
 		print("  ✓ Workspace installed successfully")
 	except Exception as e:
-		print(f"  ✗ Error installing workspace: {str(e)}")
+		print(f"  ✗ Error installing workspace: {e!s}")
 		frappe.db.rollback()
 
 	# Install Dashboard Charts
@@ -55,7 +56,7 @@ def install_dashboard():
 	for chart_file in chart_files:
 		print(f"Installing chart: {chart_file}...")
 		try:
-			with open(os.path.join(chart_path, chart_file), "r") as f:
+			with open(os.path.join(chart_path, chart_file)) as f:
 				chart_data = json.load(f)
 
 			chart_name = chart_data.get("name") or chart_data.get("chart_name")
@@ -72,9 +73,9 @@ def install_dashboard():
 				doc.insert()
 
 			frappe.db.commit()
-			print(f"  ✓ Chart installed successfully")
+			print("  ✓ Chart installed successfully")
 		except Exception as e:
-			print(f"  ✗ Error installing chart: {str(e)}")
+			print(f"  ✗ Error installing chart: {e!s}")
 			frappe.db.rollback()
 
 	# Install Number Cards
@@ -90,9 +91,9 @@ def install_dashboard():
 					card_doc = frappe.get_doc({"doctype": "Number Card", **card})
 					card_doc.insert()
 					frappe.db.commit()
-					print(f"  ✓ Number Card installed")
+					print("  ✓ Number Card installed")
 			except Exception as e:
-				print(f"  ✗ Error installing number card: {str(e)}")
+				print(f"  ✗ Error installing number card: {e!s}")
 				frappe.db.rollback()
 
 	print("\n✅ Dashboard installation complete!")

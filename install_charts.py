@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Install dashboard charts for Employee Check-in Dashboard"""
 
-import frappe
 import json
 import os
+
+import frappe
 
 
 def install_charts():
@@ -25,7 +26,7 @@ def install_charts():
 			print(f"Chart file not found: {chart_path}")
 			continue
 
-		with open(chart_path, "r") as f:
+		with open(chart_path) as f:
 			chart_data = json.load(f)
 
 		chart_name = chart_data.get("name")

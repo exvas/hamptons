@@ -8,7 +8,7 @@ Automatically closes old shift assignments when a new one is created
 
 import frappe
 from frappe import _
-from frappe.utils import getdate, add_days, today
+from frappe.utils import add_days, getdate, today
 
 
 def before_insert_shift_assignment(doc, method=None):

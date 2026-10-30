@@ -30,9 +30,9 @@ def create_custom_field_if_not_exists(doctype, field_dict):
 		print(f"  ✓ Created/Updated: {fieldname}")
 		return True
 	except Exception as e:
-		print(f"  ✗ Error creating {fieldname}: {str(e)}")
+		print(f"  ✗ Error creating {fieldname}: {e!s}")
 		frappe.log_error(
-			message=f"Error creating custom field {fieldname}: {str(e)}", title="Custom Field Creation Error"
+			message=f"Error creating custom field {fieldname}: {e!s}", title="Custom Field Creation Error"
 		)
 		return False
 
@@ -253,13 +253,13 @@ def update_leave_types_with_restrictions():
 				print(f"  ✗ Leave Type '{leave_type_name}' not found")
 				failed_count += 1
 		except Exception as e:
-			print(f"  ✗ Error updating '{leave_type_name}': {str(e)}")
+			print(f"  ✗ Error updating '{leave_type_name}': {e!s}")
 			failed_count += 1
 
 	frappe.db.commit()
 
 	print("\n" + "=" * 70)
-	print(f"✅ UPDATE COMPLETE")
+	print("✅ UPDATE COMPLETE")
 	print(f"   Updated: {updated_count}")
 	print(f"   Failed: {failed_count}")
 	print("=" * 70 + "\n")

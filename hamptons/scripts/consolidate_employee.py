@@ -3,8 +3,9 @@
 Script to trigger attendance consolidation for a specific employee on a specific date.
 """
 
-import frappe
 from datetime import datetime
+
+import frappe
 
 
 def consolidate_for_employee(employee, date_str):
@@ -96,7 +97,7 @@ def consolidate_for_employee(employee, date_str):
 				late_minutes = (first_in - shift_start).total_seconds() / 60
 				print(f"\nLate by: {late_minutes:.0f} minutes")
 			else:
-				print(f"\nNot late - arrived on time or early")
+				print("\nNot late - arrived on time or early")
 
 			# Working duration
 			working_duration = last_out - first_in
@@ -104,7 +105,7 @@ def consolidate_for_employee(employee, date_str):
 
 	# Now update or create the Attendance Regularization
 	print(f"\n{'='*70}")
-	print(f"UPDATING ATTENDANCE REGULARIZATION")
+	print("UPDATING ATTENDANCE REGULARIZATION")
 	print(f"{'='*70}")
 
 	from hamptons.overrides.employee_checkin import process_employee_checkins
@@ -116,7 +117,7 @@ def consolidate_for_employee(employee, date_str):
 		)
 		print(f"\nResult: {result}")
 	else:
-		print(f"\nNot enough checkins to create a complete attendance record")
+		print("\nNot enough checkins to create a complete attendance record")
 
 	return True
 

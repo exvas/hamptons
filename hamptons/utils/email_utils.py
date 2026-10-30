@@ -85,5 +85,5 @@ def send_email_if_enabled(
 		)
 		return True
 	except Exception as e:
-		frappe.logger().error(f"Failed to send email: {str(e)}")
+		frappe.logger().error(f"Failed to send email: {e!s}")
 		return False

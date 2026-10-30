@@ -3,8 +3,9 @@
 Script to check for attendance records on weekends.
 """
 
-import frappe
 from datetime import datetime
+
+import frappe
 
 
 def check_weekend_attendance():

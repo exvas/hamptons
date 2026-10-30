@@ -10,7 +10,7 @@ Uses Employee Family Info child table for per-family-member tracking.
 
 import frappe
 from frappe import _
-from frappe.utils import today, add_days, getdate, formatdate
+from frappe.utils import add_days, formatdate, getdate, today
 
 
 def send_visa_expiry_alerts():

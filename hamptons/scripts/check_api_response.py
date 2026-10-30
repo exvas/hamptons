@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Check CrossChex API response structure."""
 
+import json
+import uuid
+from datetime import datetime
+
 import frappe
 import requests
-import uuid
-import json
-from datetime import datetime
 
 
 def check_response():

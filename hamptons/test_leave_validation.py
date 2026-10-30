@@ -22,7 +22,7 @@ def test_leave_allocation_validation():
 		allocation.save()
 		print("❌ FAILED: Allocation created without validation!")
 	except Exception as e:
-		print(f"✅ PASSED: Validation blocked allocation")
+		print("✅ PASSED: Validation blocked allocation")
 		print(f"   Error: {str(e)[:150]}")
 
 	print("\n" + "-" * 80 + "\n")
@@ -43,7 +43,7 @@ def test_leave_allocation_validation():
 		allocation.delete()
 		frappe.db.commit()
 	except Exception as e:
-		print(f"✅ PASSED: Blocked even with ignore_permissions=True")
+		print("✅ PASSED: Blocked even with ignore_permissions=True")
 		print(f"   Error: {str(e)[:150]}")
 
 	print("\n" + "-" * 80 + "\n")
@@ -64,7 +64,7 @@ def test_leave_allocation_validation():
 		allocation.delete()
 		frappe.db.commit()
 	except Exception as e:
-		print(f"❌ FAILED: Valid allocation blocked!")
+		print("❌ FAILED: Valid allocation blocked!")
 		print(f"   Error: {str(e)[:150]}")
 
 	print("\n" + "=" * 80)

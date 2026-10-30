@@ -114,7 +114,7 @@ def validate_leave_allocation(doc, method=None):
 				)
 
 			# Check if there's an ACTIVE allocation (not expired, not cancelled)
-			from frappe.utils import today, getdate
+			from frappe.utils import getdate, today
 
 			active_allocation = frappe.db.sql(
 				"""

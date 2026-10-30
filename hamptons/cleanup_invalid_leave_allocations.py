@@ -119,7 +119,7 @@ def cleanup_invalid_allocations(dry_run=False):
 				)
 			elif alloc.custom_religion_specific == "Non-Muslim" and alloc.custom_religion == "Muslim":
 				is_invalid = True
-				reason.append(f"Religion mismatch: Employee is Muslim, Leave requires Non-Muslim")
+				reason.append("Religion mismatch: Employee is Muslim, Leave requires Non-Muslim")
 
 		if is_invalid:
 			invalid_allocations.append(
@@ -184,7 +184,7 @@ def cleanup_invalid_allocations(dry_run=False):
 			print(f"✓ Cancelled: {inv['employee']} - {inv['leave_type']}")
 			cancelled_count += 1
 		except Exception as e:
-			print(f"✗ Failed to cancel {inv['allocation_id']}: {str(e)}")
+			print(f"✗ Failed to cancel {inv['allocation_id']}: {e!s}")
 			failed_count += 1
 			frappe.db.rollback()
 

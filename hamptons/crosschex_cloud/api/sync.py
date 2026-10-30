@@ -1,10 +1,12 @@
 # Copyright (c) 2025, sammish and contributors
 # For license information, please see license.txt
 
-import frappe
-import requests
 import json
 from datetime import datetime, timedelta
+
+import frappe
+import requests
+
 from hamptons.crosschex_cloud.api.attendance import create_attendance_log
 
 
@@ -55,7 +57,7 @@ def manual_sync_crosschex_cloud():
 				processed_count += 1
 
 			except Exception as e:
-				errors.append(f"Error processing record: {str(e)}")
+				errors.append(f"Error processing record: {e!s}")
 				continue
 
 		# Update last sync time
@@ -74,17 +76,17 @@ def manual_sync_crosschex_cloud():
 		}
 
 	except Exception as e:
-		frappe.logger().error(f"CrossChex Cloud sync failed: {str(e)}")
+		frappe.logger().error(f"CrossChex Cloud sync failed: {e!s}")
 
 		# Update error status
 		try:
 			crosschex_doc = frappe.get_single("Crosschex Settings")
-			crosschex_doc.db_set("last_sync_status", f"Error: {str(e)}", update_modified=False)
+			crosschex_doc.db_set("last_sync_status", f"Error: {e!s}", update_modified=False)
 			frappe.db.commit()
 		except:
 			pass
 
-		return {"success": False, "error": f"Sync failed: {str(e)}"}
+		return {"success": False, "error": f"Sync failed: {e!s}"}
 
 
 def get_crosschex_settings():
@@ -108,7 +110,7 @@ def get_crosschex_settings():
 			"last_sync": getattr(settings, "last_sync_time", None),
 		}
 	except Exception as e:
-		frappe.logger().error(f"Error getting Crosschex settings: {str(e)}")
+		frappe.logger().error(f"Error getting Crosschex settings: {e!s}")
 		return None
 
 
@@ -202,7 +204,7 @@ def fetch_attendance_from_crosschex_api(settings, access_token):
 				# Log sample record for debugging
 				if records:
 					frappe.log_error(
-						message=f"CrossChex API Response Sample:\n"
+						message="CrossChex API Response Sample:\n"
 						+ f"Total records: {len(records)}\n"
 						+ f"Sample record: {json.dumps(records[0], indent=2)}",
 						title="CrossChex Sync - API Response",
@@ -234,7 +236,7 @@ def fetch_attendance_from_crosschex_api(settings, access_token):
 		return []
 
 	except Exception as e:
-		frappe.logger().error(f"Error fetching attendance from CrossChex API: {str(e)}")
+		frappe.logger().error(f"Error fetching attendance from CrossChex API: {e!s}")
 		return []
 
 
@@ -246,7 +248,7 @@ def sync_attendance_from_crosschex_cloud():
 		result = manual_sync_crosschex_cloud()
 		frappe.logger().info(f"CrossChex Cloud scheduled sync completed: {result}")
 	except Exception as e:
-		frappe.logger().error(f"CrossChex Cloud scheduled sync failed: {str(e)}")
+		frappe.logger().error(f"CrossChex Cloud scheduled sync failed: {e!s}")
 		raise
 
 
@@ -267,7 +269,7 @@ def get_sync_status():
 		}
 
 	except Exception as e:
-		return {"error": f"Error getting sync status: {str(e)}"}
+		return {"error": f"Error getting sync status: {e!s}"}
 
 
 @frappe.whitelist()
@@ -289,4 +291,4 @@ def test_api_connection(api_url=None, access_token=None):
 			return {"success": False, "error": f"Connection failed: {token_result.get('error')}"}
 
 	except Exception as e:
-		return {"success": False, "error": f"Connection test failed: {str(e)}"}
+		return {"success": False, "error": f"Connection test failed: {e!s}"}

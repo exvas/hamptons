@@ -1,10 +1,11 @@
 # Copyright (c) 2025, sammish and contributors
 # For license information, please see license.txt
 
-import frappe
-from frappe.utils import getdate, get_time
-from datetime import datetime, timedelta
 import re
+from datetime import datetime, timedelta
+
+import frappe
+from frappe.utils import get_time, getdate
 
 # Standardize indentation to 4 spaces
 
@@ -129,7 +130,7 @@ def recalculate_working_hours_from_checkins(attendance_reference):
 		}
 
 	except Exception as e:
-		frappe.log_error(f"Error recalculating working hours: {str(e)}")
+		frappe.log_error(f"Error recalculating working hours: {e!s}")
 		return None
 
 
@@ -366,7 +367,7 @@ def get_data(filters):
 				in_time_obj = get_time(record["in_time"])
 				record["in_time"] = in_time_obj.strftime("%I:%M %p")
 			except Exception as e:
-				frappe.logger().error(f"Error converting in_time: {str(e)}")
+				frappe.logger().error(f"Error converting in_time: {e!s}")
 				record["in_time"] = ""
 
 		if record["out_time"]:
@@ -378,7 +379,7 @@ def get_data(filters):
 				else:
 					record["out_time"] = ""
 			except Exception as e:
-				frappe.logger().error(f"Error converting out_time: {str(e)}")
+				frappe.logger().error(f"Error converting out_time: {e!s}")
 				record["out_time"] = ""
 
 		# Merge with attendance status if available
@@ -575,7 +576,7 @@ def get_data(filters):
 					weekoff_lookup[(emp_id, day_name)] = True
 		except Exception as e:
 			# If Holiday table query fails, log error and continue without holidays
-			frappe.log_error(f"Error fetching holiday data: {str(e)}")
+			frappe.log_error(f"Error fetching holiday data: {e!s}")
 			employee_holidays = {}
 
 		# Get shift assignments, week-off days, and base hours for employees
@@ -635,7 +636,7 @@ def get_data(filters):
 					)
 		except Exception as e:
 			# If shift assignment query fails, log error and continue with empty shift data
-			frappe.log_error(f"Error fetching shift assignment data: {str(e)}")
+			frappe.log_error(f"Error fetching shift assignment data: {e!s}")
 			employee_weekoffs = {}
 			employee_base_hours = {}
 
@@ -1122,7 +1123,7 @@ def is_holiday(date, employee):
 					return True
 			return False
 	except Exception as e:
-		frappe.log_error(f"Error checking holiday: {str(e)}")
+		frappe.log_error(f"Error checking holiday: {e!s}")
 		return False
 
 
@@ -1206,10 +1207,10 @@ def test_report_via_console():
 	filters = {"from_date": "2025-11-01", "to_date": "2025-11-30"}
 	try:
 		data = get_data(filters)
-		print(f"=== Consolidate Attendance Report Test ===")
+		print("=== Consolidate Attendance Report Test ===")
 		print(f"Total records: {len(data)}")
 		if data:
-			print(f"\nFirst 5 records:")
+			print("\nFirst 5 records:")
 			for i, row in enumerate(data[:5]):
 				print(f"\nRecord {i+1}:")
 				print(f'  Date: {row.get("date")}')
@@ -1222,12 +1223,12 @@ def test_report_via_console():
 		# Check for blank times
 		blank_in_time = sum(1 for row in data if row.get("in_time") == "")
 		blank_out_time = sum(1 for row in data if row.get("out_time") == "")
-		print(f"\n=== Summary ===")
+		print("\n=== Summary ===")
 		print(f"Records with blank In Time: {blank_in_time}")
 		print(f"Records with blank Out Time: {blank_out_time}")
 
 		if blank_in_time > 0 or blank_out_time > 0:
-			print(f"\n=== WARNING: Some records have blank times ===")
+			print("\n=== WARNING: Some records have blank times ===")
 			for i, row in enumerate(data):
 				if row.get("in_time") == "" or row.get("out_time") == "":
 					print(

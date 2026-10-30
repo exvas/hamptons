@@ -1,10 +1,11 @@
 # Copyright (c) 2024, Momscode and contributors
 # For license information, please see license.txt
 
-import frappe
-from frappe import _
 import json
 import os
+
+import frappe
+from frappe import _
 
 
 def install_dashboard():
@@ -28,7 +29,7 @@ def install_dashboard():
 		frappe.logger().info(f"Installing chart: {chart_file}...")
 		print(f"Installing chart: {chart_file}...")
 		try:
-			with open(os.path.join(chart_path, chart_file), "r") as f:
+			with open(os.path.join(chart_path, chart_file)) as f:
 				chart_data = json.load(f)
 
 			chart_name = chart_data.get("name") or chart_data.get("chart_name")
@@ -45,11 +46,11 @@ def install_dashboard():
 				doc.insert(ignore_permissions=True)
 
 			frappe.db.commit()
-			frappe.logger().info(f"  ✓ Chart installed successfully")
+			frappe.logger().info("  ✓ Chart installed successfully")
 			print(f"✓ Chart '{chart_name}' installed successfully")
 		except Exception as e:
-			frappe.logger().error(f"  ✗ Error installing chart: {str(e)}")
-			print(f"✗ Error installing chart: {str(e)}")
+			frappe.logger().error(f"  ✗ Error installing chart: {e!s}")
+			print(f"✗ Error installing chart: {e!s}")
 			frappe.db.rollback()
 
 	# Install Workspace AFTER charts are created
@@ -57,7 +58,7 @@ def install_dashboard():
 	workspace_path = os.path.join(app_path, "hamptons", "workspace", "employee_checkin_dashboard.json")
 
 	try:
-		with open(workspace_path, "r") as f:
+		with open(workspace_path) as f:
 			workspace_data = json.load(f)
 
 		# Remove references to non-existent links to avoid validation errors
@@ -91,8 +92,8 @@ def install_dashboard():
 		frappe.logger().info("  ✓ Workspace installed successfully")
 		print("✓ Workspace installed successfully")
 	except Exception as e:
-		frappe.logger().error(f"  ✗ Error installing workspace: {str(e)}")
-		print(f"✗ Error installing workspace: {str(e)}")
+		frappe.logger().error(f"  ✗ Error installing workspace: {e!s}")
+		print(f"✗ Error installing workspace: {e!s}")
 		frappe.db.rollback()
 		raise
 
@@ -181,7 +182,7 @@ def install_simple_workspace():
 		print("\nAccess it at: /app/employee-check-in-dashboard")
 		return "Success"
 	except Exception as e:
-		print(f"✗ Error: {str(e)}")
+		print(f"✗ Error: {e!s}")
 		frappe.db.rollback()
 		raise
 
@@ -210,7 +211,7 @@ def install_dashboard_charts():
 			print(f"✗ Chart file not found: {chart_path}")
 			continue
 
-		with open(chart_path, "r") as f:
+		with open(chart_path) as f:
 			chart_data = json.load(f)
 
 		chart_name = chart_data.get("name") or chart_data.get("chart_name")
@@ -230,7 +231,7 @@ def install_dashboard_charts():
 			frappe.db.commit()
 			print(f"✓ Chart '{chart_name}' installed successfully")
 		except Exception as e:
-			print(f"✗ Error installing chart '{chart_name}': {str(e)}")
+			print(f"✗ Error installing chart '{chart_name}': {e!s}")
 			frappe.db.rollback()
 
 	print("\n✅ Dashboard charts installation complete!")

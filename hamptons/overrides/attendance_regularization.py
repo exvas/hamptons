@@ -185,6 +185,4 @@ def send_ar_notification_email(
 			f"Sent Attendance Regularization notification to {', '.join(recipients)} for {ar_name}"
 		)
 	except Exception as e:
-		frappe.logger().error(
-			f"Failed to send Attendance Regularization notification for {ar_name}: {str(e)}"
-		)
+		frappe.logger().error(f"Failed to send Attendance Regularization notification for {ar_name}: {e!s}")

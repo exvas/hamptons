@@ -217,10 +217,10 @@ def create_leave_type(leave_data):
 
 	except Exception as e:
 		frappe.log_error(
-			message=f"Error creating leave type {leave_type_name}: {str(e)}",
+			message=f"Error creating leave type {leave_type_name}: {e!s}",
 			title="Leave Type Creation Error",
 		)
-		print(f"  ✗ Error creating leave type '{leave_type_name}': {str(e)}")
+		print(f"  ✗ Error creating leave type '{leave_type_name}': {e!s}")
 		frappe.db.rollback()
 		return None
 
@@ -268,10 +268,8 @@ def create_leave_policy():
 		return doc
 
 	except Exception as e:
-		frappe.log_error(
-			message=f"Error creating leave policy: {str(e)}", title="Leave Policy Creation Error"
-		)
-		print(f"  ✗ Error creating leave policy: {str(e)}")
+		frappe.log_error(message=f"Error creating leave policy: {e!s}", title="Leave Policy Creation Error")
+		print(f"  ✗ Error creating leave policy: {e!s}")
 		frappe.db.rollback()
 		return None
 
@@ -349,7 +347,7 @@ def assign_leave_policy_to_employee(
 	Returns:
 		Leave Policy Assignment document
 	"""
-	from frappe.utils import today, getdate
+	from frappe.utils import getdate, today
 
 	if not effective_from:
 		effective_from = today()
@@ -391,10 +389,10 @@ def assign_leave_policy_to_employee(
 
 	except Exception as e:
 		frappe.log_error(
-			message=f"Error assigning leave policy to {employee_id}: {str(e)}",
+			message=f"Error assigning leave policy to {employee_id}: {e!s}",
 			title="Leave Policy Assignment Error",
 		)
-		print(f"  ✗ Error: {str(e)}")
+		print(f"  ✗ Error: {e!s}")
 		frappe.db.rollback()
 		return None
 
@@ -446,7 +444,7 @@ def bulk_assign_leave_policy(filters=None, policy_name="Oman Labor Law Leave Pol
 			failed_count += 1
 
 	print("\n" + "-" * 70)
-	print(f"✅ BULK ASSIGNMENT COMPLETE")
+	print("✅ BULK ASSIGNMENT COMPLETE")
 	print(f"   Success: {success_count}")
 	print(f"   Failed: {failed_count}")
 	print("=" * 70 + "\n")

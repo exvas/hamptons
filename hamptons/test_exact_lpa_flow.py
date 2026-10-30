@@ -1,5 +1,5 @@
 import frappe
-from frappe.utils import today, add_years
+from frappe.utils import add_years, today
 
 
 def test_exact_leave_policy_assignment_flow():
@@ -12,10 +12,10 @@ def test_exact_leave_policy_assignment_flow():
 	employee_id = "1002"
 	leave_type = "Maternity Leave"
 
-	print(f"Creating allocation for:")
+	print("Creating allocation for:")
 	print(f"  Employee: {employee_id} (Male)")
 	print(f"  Leave Type: {leave_type} (Female only)")
-	print(f"  Method: Exactly like Leave Policy Assignment\n")
+	print("  Method: Exactly like Leave Policy Assignment\n")
 	print("-" * 80 + "\n")
 
 	try:
@@ -42,7 +42,7 @@ def test_exact_leave_policy_assignment_flow():
 		# Submit (line 136 in leave_policy_assignment.py)
 		allocation.submit()
 
-		print(f"Step 3: Submitted")
+		print("Step 3: Submitted")
 
 		print("\n❌ VALIDATION FAILED - Allocation was created and submitted!")
 		print(f"   Allocation: {allocation.name}")

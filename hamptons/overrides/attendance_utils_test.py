@@ -1,5 +1,6 @@
 import frappe
-from frappe.utils import now_datetime, add_to_date
+from frappe.utils import add_to_date, now_datetime
+
 from hamptons.overrides.attendance_utils import get_first_in_last_out, infer_log_type_from_sequence
 
 
@@ -138,10 +139,10 @@ def run_attendance_utils_tests():
 		test_infer_log_type_from_sequence()
 		print("All Attendance Utils Tests Passed Successfully!")
 	except AssertionError as e:
-		print(f"Test Failed: {str(e)}")
+		print(f"Test Failed: {e!s}")
 		raise
 	except Exception as e:
-		print(f"Unexpected Error in Tests: {str(e)}")
+		print(f"Unexpected Error in Tests: {e!s}")
 		raise
 
 

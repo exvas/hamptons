@@ -19,7 +19,6 @@ Usage:
 import frappe
 from frappe import _
 
-
 # Predefined mapping of employees (update this based on your actual data)
 EMPLOYEE_MAPPING = {
 	# Format: 'employee_id': {'nationality': 'Omani/Non-Omani', 'religion': 'Muslim/Non-Muslim'}
@@ -80,7 +79,7 @@ def update_single(employee_id, nationality, religion):
 
 	except Exception as e:
 		frappe.log_error(
-			message=f"Error updating employee {employee_id}: {str(e)}", title="Employee Update Error"
+			message=f"Error updating employee {employee_id}: {e!s}", title="Employee Update Error"
 		)
 		frappe.throw(_("Error updating employee: {0}").format(str(e)))
 
@@ -130,7 +129,7 @@ def update_from_mapping(custom_mapping=None):
 			updated += 1
 
 		except Exception as e:
-			error_msg = f"{emp_id}: {str(e)}"
+			error_msg = f"{emp_id}: {e!s}"
 			print(f"✗ Failed {error_msg}")
 			errors.append(error_msg)
 			failed += 1

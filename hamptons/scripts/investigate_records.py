@@ -4,9 +4,10 @@ Comprehensive investigation of Employee Checkin, Attendance, and Attendance Regu
 Checks for data consistency and anomalies.
 """
 
-import frappe
 from datetime import datetime, timedelta
-from frappe.utils import getdate, today, get_datetime
+
+import frappe
+from frappe.utils import get_datetime, getdate, today
 
 
 def investigate_all():
@@ -338,7 +339,7 @@ def investigate_all():
 	print("  " + "-" * 65)
 	for stat in recent_stats:
 		print(
-			f"  {str(stat['date']):<12} | {stat['checkins']:<10} | {stat['present']:<10} | {stat['absent']:<10} | {stat['regularizations']:<15}"
+			f"  {stat['date']!s:<12} | {stat['checkins']:<10} | {stat['present']:<10} | {stat['absent']:<10} | {stat['regularizations']:<15}"
 		)
 
 	# Summary

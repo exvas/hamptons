@@ -59,7 +59,7 @@ def fix_weekend_absent_records(dry_run=True):
 			by_date[date_key] = []
 		by_date[date_key].append(r)
 
-	print(f"\nBreakdown by date:")
+	print("\nBreakdown by date:")
 	for date, records in sorted(by_date.items())[:20]:  # Show first 20 dates
 		day_name = records[0]["day_name"]
 		print(f"  {date} ({day_name}): {len(records)} records")
@@ -99,7 +99,7 @@ def fix_weekend_absent_records(dry_run=True):
 		except Exception as e:
 			errors += 1
 			frappe.log_error(
-				message=f"Error deleting {r['name']}: {str(e)}", title="Fix Weekend Absent - Delete Error"
+				message=f"Error deleting {r['name']}: {e!s}", title="Fix Weekend Absent - Delete Error"
 			)
 
 	frappe.db.commit()

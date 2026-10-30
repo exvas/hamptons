@@ -14,13 +14,14 @@ This ensures no punch data is ever lost due to webhook failures,
 network issues, or sync timing problems.
 """
 
-import frappe
-from frappe.utils import now_datetime, get_datetime, add_days, getdate
-from datetime import datetime, timedelta
-from dateutil import parser, tz
-import requests
-import uuid as uuid_lib
 import json
+import uuid as uuid_lib
+from datetime import datetime, timedelta
+
+import frappe
+import requests
+from dateutil import parser, tz
+from frappe.utils import add_days, get_datetime, getdate, now_datetime
 
 
 def reconcile_missing_checkins(days_back=2, dry_run=False):
@@ -79,7 +80,7 @@ def reconcile_missing_checkins(days_back=2, dry_run=False):
 			results["details"].append({"device": config.configuration_name, "result": device_result})
 
 		except Exception as e:
-			error_msg = f"Error reconciling {config.configuration_name}: {str(e)}"
+			error_msg = f"Error reconciling {config.configuration_name}: {e!s}"
 			results["errors"].append(error_msg)
 			frappe.log_error(message=error_msg, title="CrossChex Reconciliation Error")
 
@@ -175,7 +176,7 @@ def reconcile_device(config, begin_time, end_time, dry_run=False):
 
 		except Exception as e:
 			frappe.log_error(
-				message=f"Error fetching page {page}: {str(e)}",
+				message=f"Error fetching page {page}: {e!s}",
 				title=f"CrossChex Reconciliation - {config.configuration_name}",
 			)
 			break
@@ -221,7 +222,7 @@ def reconcile_device(config, begin_time, end_time, dry_run=False):
 			except Exception as e:
 				errors.append(str(e))
 				frappe.log_error(
-					message=f"Error importing record: {json.dumps(record)}\nError: {str(e)}",
+					message=f"Error importing record: {json.dumps(record)}\nError: {e!s}",
 					title="CrossChex Reconciliation - Import Error",
 				)
 
@@ -356,7 +357,7 @@ def scheduled_reconciliation_job():
 
 	except Exception as e:
 		frappe.log_error(
-			message=f"Scheduled reconciliation failed: {str(e)}", title="CrossChex Reconciliation Job Error"
+			message=f"Scheduled reconciliation failed: {e!s}", title="CrossChex Reconciliation Job Error"
 		)
 
 
@@ -400,6 +401,6 @@ def trigger_consolidation_for_imported_records(results):
 
 	except Exception as e:
 		frappe.log_error(
-			message=f"Error triggering consolidation: {str(e)}",
+			message=f"Error triggering consolidation: {e!s}",
 			title="CrossChex Reconciliation - Consolidation Error",
 		)

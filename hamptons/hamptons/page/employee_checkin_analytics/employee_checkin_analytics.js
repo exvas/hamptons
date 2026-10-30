@@ -1,23 +1,23 @@
 // Copyright (c) 2024, Momscode and contributors
 // For license information, please see license.txt
 
-frappe.pages['employee-checkin-analytics'].on_page_load = function(wrapper) {
+frappe.pages["employee-checkin-analytics"].on_page_load = function (wrapper) {
 	var page = frappe.ui.make_app_page({
 		parent: wrapper,
-		title: 'Employee Check-in Analytics',
-		single_column: true
+		title: "Employee Check-in Analytics",
+		single_column: true,
 	});
 
 	// Wait for page to be ready
 	setTimeout(() => {
 		// Add custom styling
 		if (page.$page && page.$page.find) {
-			page.$page.find('.page-head').css({
-				'background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-				'color': 'white',
-				'border-radius': '8px',
-				'margin-bottom': '20px',
-				'padding': '15px'
+			page.$page.find(".page-head").css({
+				background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+				color: "white",
+				"border-radius": "8px",
+				"margin-bottom": "20px",
+				padding: "15px",
 			});
 		}
 
@@ -31,7 +31,7 @@ class EmployeeCheckinAnalytics {
 		this.parent = $(this.page.body);
 		this.filters = {};
 		this.charts = {};
-		
+
 		this.make_filters();
 		this.make_dashboard();
 		this.load_data();
@@ -44,7 +44,10 @@ class EmployeeCheckinAnalytics {
 				<div class="row">
 					<div class="col-sm-3">
 						<label class="control-label" style="font-weight: 600;">From Date</label>
-						<input type="date" class="form-control" id="from_date" value="${frappe.datetime.add_days(frappe.datetime.nowdate(), -30)}">
+						<input type="date" class="form-control" id="from_date" value="${frappe.datetime.add_days(
+							frappe.datetime.nowdate(),
+							-30
+						)}">
 					</div>
 					<div class="col-sm-3">
 						<label class="control-label" style="font-weight: 600;">To Date</label>
@@ -74,35 +77,35 @@ class EmployeeCheckinAnalytics {
 				</div>
 			</div>
 		`;
-		
+
 		this.parent.append(filter_html);
 
 		// Employee filter
 		this.employee_field = frappe.ui.form.make_control({
-			parent: this.parent.find('#employee_filter'),
+			parent: this.parent.find("#employee_filter"),
 			df: {
-				fieldtype: 'Link',
-				options: 'Employee',
-				placeholder: 'All Employees'
+				fieldtype: "Link",
+				options: "Employee",
+				placeholder: "All Employees",
 			},
-			render_input: true
+			render_input: true,
 		});
 
 		// Department filter
 		this.department_field = frappe.ui.form.make_control({
-			parent: this.parent.find('#department_filter'),
+			parent: this.parent.find("#department_filter"),
 			df: {
-				fieldtype: 'Link',
-				options: 'Department',
-				placeholder: 'All Departments'
+				fieldtype: "Link",
+				options: "Department",
+				placeholder: "All Departments",
 			},
-			render_input: true
+			render_input: true,
 		});
 
 		// Filter button events
-		this.parent.find('#apply_filters').on('click', () => this.load_data());
-		this.parent.find('#reset_filters').on('click', () => this.reset_filters());
-		this.parent.find('#export_data').on('click', () => this.export_to_excel());
+		this.parent.find("#apply_filters").on("click", () => this.load_data());
+		this.parent.find("#reset_filters").on("click", () => this.reset_filters());
+		this.parent.find("#export_data").on("click", () => this.export_to_excel());
 	}
 
 	make_dashboard() {
@@ -213,51 +216,53 @@ class EmployeeCheckinAnalytics {
 				</div>
 			</div>
 		`;
-		
+
 		this.parent.append(dashboard_html);
 	}
 
 	get_filters() {
 		return {
-			from_date: this.parent.find('#from_date').val(),
-			to_date: this.parent.find('#to_date').val(),
+			from_date: this.parent.find("#from_date").val(),
+			to_date: this.parent.find("#to_date").val(),
 			employee: this.employee_field.get_value(),
-			department: this.department_field.get_value()
+			department: this.department_field.get_value(),
 		};
 	}
 
 	reset_filters() {
-		this.parent.find('#from_date').val(frappe.datetime.add_days(frappe.datetime.nowdate(), -30));
-		this.parent.find('#to_date').val(frappe.datetime.nowdate());
-		this.employee_field.set_value('');
-		this.department_field.set_value('');
+		this.parent
+			.find("#from_date")
+			.val(frappe.datetime.add_days(frappe.datetime.nowdate(), -30));
+		this.parent.find("#to_date").val(frappe.datetime.nowdate());
+		this.employee_field.set_value("");
+		this.department_field.set_value("");
 		this.load_data();
 	}
 
 	load_data() {
-		frappe.dom.freeze('Loading analytics...');
-		
+		frappe.dom.freeze("Loading analytics...");
+
 		const filters = this.get_filters();
 
 		frappe.call({
-			method: 'hamptons.hamptons.page.employee_checkin_analytics.employee_checkin_analytics.get_analytics_data',
+			method: "hamptons.hamptons.page.employee_checkin_analytics.employee_checkin_analytics.get_analytics_data",
 			args: { filters: filters },
 			callback: (r) => {
 				frappe.dom.unfreeze();
 				if (r.message) {
 					this.render_dashboard(r.message);
 				}
-			}
+			},
 		});
 	}
 
 	render_dashboard(data) {
 		// Update summary cards
-		this.parent.find('#total_checkins').text(data.summary.total_checkins || 0);
-		this.parent.find('#unique_employees').text(data.summary.unique_employees || 0);
-		this.parent.find('#avg_daily').text(data.summary.avg_daily_checkins || 0);
-		this.parent.find('#total_devices').text(data.summary.total_devices || 0);
-		this.parent.find('#checkins_change').text((data.summary.change_percentage || 0) + '%');
+		this.parent.find("#total_checkins").text(data.summary.total_checkins || 0);
+		this.parent.find("#unique_employees").text(data.summary.unique_employees || 0);
+		this.parent.find("#avg_daily").text(data.summary.avg_daily_checkins || 0);
+		this.parent.find("#total_devices").text(data.summary.total_devices || 0);
+		this.parent.find("#checkins_change").text((data.summary.change_percentage || 0) + "%");
 
 		// Render charts
 		this.render_daily_trend(data.daily_trend);
@@ -269,135 +274,151 @@ class EmployeeCheckinAnalytics {
 	}
 
 	render_daily_trend(data) {
-		const container = this.parent.find('#daily_trend_chart');
+		const container = this.parent.find("#daily_trend_chart");
 		if (!container.length) return;
-		
+
 		if (!data || data.length === 0) {
-			container.html('<p class="text-muted text-center" style="padding: 40px;">No data available</p>');
+			container.html(
+				'<p class="text-muted text-center" style="padding: 40px;">No data available</p>'
+			);
 			return;
 		}
 
 		try {
 			const chart = new frappe.Chart(container[0], {
 				data: {
-					labels: data.map(d => d.date),
+					labels: data.map((d) => d.date),
 					datasets: [
 						{
-							name: 'Check-ins',
-							values: data.map(d => d.count)
-						}
-					]
+							name: "Check-ins",
+							values: data.map((d) => d.count),
+						},
+					],
 				},
-				type: 'line',
+				type: "line",
 				height: 250,
-				colors: ['#667eea'],
+				colors: ["#667eea"],
 				lineOptions: {
 					regionFill: 1,
-					hideDots: 0
-				}
+					hideDots: 0,
+				},
 			});
 
 			this.charts.daily_trend = chart;
 		} catch (error) {
-			console.error('Error rendering daily trend chart:', error);
+			console.error("Error rendering daily trend chart:", error);
 			container.html('<p class="text-muted text-center">Error loading chart</p>');
 		}
 	}
 
 	render_checkin_type(data) {
-		const container = this.parent.find('#checkin_type_chart');
+		const container = this.parent.find("#checkin_type_chart");
 		if (!container.length) return;
-		
+
 		if (!data || data.length === 0) {
-			container.html('<p class="text-muted text-center" style="padding: 40px;">No data available</p>');
+			container.html(
+				'<p class="text-muted text-center" style="padding: 40px;">No data available</p>'
+			);
 			return;
 		}
 
 		try {
 			const chart = new frappe.Chart(container[0], {
 				data: {
-					labels: data.map(d => d.log_type || 'Unknown'),
-					datasets: [{
-						values: data.map(d => d.count)
-					}]
+					labels: data.map((d) => d.log_type || "Unknown"),
+					datasets: [
+						{
+							values: data.map((d) => d.count),
+						},
+					],
 				},
-				type: 'pie',
+				type: "pie",
 				height: 230,
-				colors: ['#43e97b', '#f5576c']
+				colors: ["#43e97b", "#f5576c"],
 			});
 
 			this.charts.checkin_type = chart;
 		} catch (error) {
-			console.error('Error rendering checkin type chart:', error);
+			console.error("Error rendering checkin type chart:", error);
 			container.html('<p class="text-muted text-center">Error loading chart</p>');
 		}
 	}
 
 	render_hourly_distribution(data) {
-		const container = this.parent.find('#hourly_distribution_chart');
+		const container = this.parent.find("#hourly_distribution_chart");
 		if (!container.length) return;
-		
+
 		if (!data || data.length === 0) {
-			container.html('<p class="text-muted text-center" style="padding: 40px;">No data available</p>');
+			container.html(
+				'<p class="text-muted text-center" style="padding: 40px;">No data available</p>'
+			);
 			return;
 		}
 
 		try {
 			const chart = new frappe.Chart(container[0], {
 				data: {
-					labels: data.map(d => (d.hour || 0) + ':00'),
-					datasets: [{
-						name: 'Check-ins',
-						values: data.map(d => d.count)
-					}]
+					labels: data.map((d) => (d.hour || 0) + ":00"),
+					datasets: [
+						{
+							name: "Check-ins",
+							values: data.map((d) => d.count),
+						},
+					],
 				},
-				type: 'bar',
+				type: "bar",
 				height: 250,
-				colors: ['#4facfe'],
+				colors: ["#4facfe"],
 				barOptions: {
-					spaceRatio: 0.5
-				}
+					spaceRatio: 0.5,
+				},
 			});
 
 			this.charts.hourly = chart;
 		} catch (error) {
-			console.error('Error rendering hourly chart:', error);
+			console.error("Error rendering hourly chart:", error);
 			container.html('<p class="text-muted text-center">Error loading chart</p>');
 		}
 	}
 
 	render_department_chart(data) {
-		const container = this.parent.find('#department_chart');
+		const container = this.parent.find("#department_chart");
 		if (!container.length) return;
-		
+
 		if (!data || data.length === 0) {
-			container.html('<p class="text-muted text-center" style="padding: 40px;">No data available</p>');
+			container.html(
+				'<p class="text-muted text-center" style="padding: 40px;">No data available</p>'
+			);
 			return;
 		}
 
 		try {
 			const chart = new frappe.Chart(container[0], {
 				data: {
-					labels: data.map(d => d.department || 'Unassigned'),
-					datasets: [{
-						values: data.map(d => d.count)
-					}]
+					labels: data.map((d) => d.department || "Unassigned"),
+					datasets: [
+						{
+							values: data.map((d) => d.count),
+						},
+					],
 				},
-				type: 'percentage',
+				type: "percentage",
 				height: 250,
-				colors: ['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe', '#43e97b']
+				colors: ["#667eea", "#764ba2", "#f093fb", "#f5576c", "#4facfe", "#43e97b"],
 			});
 
 			this.charts.department = chart;
 		} catch (error) {
-			console.error('Error rendering department chart:', error);
+			console.error("Error rendering department chart:", error);
 			container.html('<p class="text-muted text-center">Error loading chart</p>');
 		}
 	}
 
 	render_top_employees(data) {
 		if (!data || data.length === 0) {
-			this.parent.find('#top_employees_table').html('<p class="text-muted text-center">No data available</p>');
+			this.parent
+				.find("#top_employees_table")
+				.html('<p class="text-muted text-center">No data available</p>');
 			return;
 		}
 
@@ -424,7 +445,7 @@ class EmployeeCheckinAnalytics {
 						<strong>${emp.employee_name}</strong><br>
 						<small class="text-muted">${emp.employee}</small>
 					</td>
-					<td>${emp.department || '-'}</td>
+					<td>${emp.department || "-"}</td>
 					<td><span class="badge" style="background: #43e97b;">${emp.check_ins}</span></td>
 					<td><span class="badge" style="background: #f5576c;">${emp.check_outs}</span></td>
 					<td><strong>${emp.total}</strong></td>
@@ -432,54 +453,58 @@ class EmployeeCheckinAnalytics {
 			`;
 		});
 
-		html += '</tbody></table>';
-		this.parent.find('#top_employees_table').html(html);
+		html += "</tbody></table>";
+		this.parent.find("#top_employees_table").html(html);
 	}
 
 	render_device_usage(data) {
-		const container = this.parent.find('#device_usage_chart');
+		const container = this.parent.find("#device_usage_chart");
 		if (!container.length) return;
-		
+
 		if (!data || data.length === 0) {
-			container.html('<p class="text-muted text-center" style="padding: 40px;">No data available</p>');
+			container.html(
+				'<p class="text-muted text-center" style="padding: 40px;">No data available</p>'
+			);
 			return;
 		}
 
 		try {
 			const chart = new frappe.Chart(container[0], {
 				data: {
-					labels: data.map(d => d.device_id || 'Unknown'),
-					datasets: [{
-						name: 'Usage Count',
-						values: data.map(d => d.count)
-					}]
+					labels: data.map((d) => d.device_id || "Unknown"),
+					datasets: [
+						{
+							name: "Usage Count",
+							values: data.map((d) => d.count),
+						},
+					],
 				},
-				type: 'bar',
+				type: "bar",
 				height: 250,
-				colors: ['#f093fb'],
+				colors: ["#f093fb"],
 				barOptions: {
-					spaceRatio: 0.3
-				}
+					spaceRatio: 0.3,
+				},
 			});
 
 			this.charts.device = chart;
 		} catch (error) {
-			console.error('Error rendering device chart:', error);
+			console.error("Error rendering device chart:", error);
 			container.html('<p class="text-muted text-center">Error loading chart</p>');
 		}
 	}
 
 	export_to_excel() {
 		const filters = this.get_filters();
-		
+
 		frappe.call({
-			method: 'hamptons.hamptons.page.employee_checkin_analytics.employee_checkin_analytics.export_to_excel',
+			method: "hamptons.hamptons.page.employee_checkin_analytics.employee_checkin_analytics.export_to_excel",
 			args: { filters: filters },
 			callback: (r) => {
 				if (r.message) {
 					window.open(r.message.file_url);
 				}
-			}
+			},
 		});
 	}
 }

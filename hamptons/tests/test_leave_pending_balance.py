@@ -11,7 +11,6 @@ import json
 
 import frappe
 from frappe.utils import add_days, getdate, today
-
 from hrms.hr.doctype.leave_application.leave_application import InsufficientLeaveBalanceError
 
 LEAVE_TYPE = "Annual Leave"

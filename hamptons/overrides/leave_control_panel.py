@@ -74,7 +74,7 @@ def create_leave_policy_assignments(self, employees: list) -> dict:
 			frappe.db.rollback()
 
 			frappe.log_error(
-				message=f"Leave Policy Assignment failed for employee {employee}: {str(e)}",
+				message=f"Leave Policy Assignment failed for employee {employee}: {e!s}",
 				title="Leave Policy Assignment Error",
 			)
 
@@ -132,7 +132,7 @@ def check_leave_eligibility(employee_id, leave_type_name):
 						)
 				elif leave_type.custom_religion_specific == "Non-Muslim":
 					if emp_religion == "Muslim":
-						return False, f"Religion restriction: requires Non-Muslim, employee is Muslim"
+						return False, "Religion restriction: requires Non-Muslim, employee is Muslim"
 
 		# Check once-in-service (Hajj Leave) - Flexible: Allow re-allocation if not consumed
 		if hasattr(leave_type, "custom_once_in_service") and leave_type.custom_once_in_service:
@@ -189,7 +189,7 @@ def check_leave_eligibility(employee_id, leave_type_name):
 		return True, None
 
 	except Exception as e:
-		frappe.logger().error(f"Error checking leave eligibility: {str(e)}")
+		frappe.logger().error(f"Error checking leave eligibility: {e!s}")
 		return True, None  # Allow if check fails
 
 
@@ -283,4 +283,4 @@ def override_leave_control_panel(*args):
 
 		frappe.logger().info("Leave Control Panel and Leave Policy Assignment overrides applied successfully")
 	except Exception as e:
-		frappe.logger().error(f"Failed to override Leave Control Panel: {str(e)}")
+		frappe.logger().error(f"Failed to override Leave Control Panel: {e!s}")
