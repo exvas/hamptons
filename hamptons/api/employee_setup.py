@@ -118,7 +118,9 @@ def _assign_leave_policy(emp, leave_policy=None, leave_period=None) -> dict:
 			_("Select a Leave Policy. There is not exactly one submitted Leave Policy to use by default.")
 		)
 	if not frappe.db.exists("Leave Policy", {"name": leave_policy, "docstatus": 1}):
-		frappe.throw(_("Leave Policy {0} does not exist or is not submitted.").format(frappe.bold(leave_policy)))
+		frappe.throw(
+			_("Leave Policy {0} does not exist or is not submitted.").format(frappe.bold(leave_policy))
+		)
 
 	if leave_period:
 		period = frappe.db.get_value(
@@ -147,9 +149,9 @@ def _assign_leave_policy(emp, leave_policy=None, leave_period=None) -> dict:
 
 	if getdate(emp.date_of_joining) > getdate(period.to_date):
 		frappe.throw(
-			_("Date of Joining {0} is after Leave Period {1} ends on {2}. Create a Leave Period for that year.").format(
-				formatdate(emp.date_of_joining), frappe.bold(period.name), formatdate(period.to_date)
-			)
+			_(
+				"Date of Joining {0} is after Leave Period {1} ends on {2}. Create a Leave Period for that year."
+			).format(formatdate(emp.date_of_joining), frappe.bold(period.name), formatdate(period.to_date))
 		)
 
 	# Re-use a matching draft (e.g. left behind by an earlier failed submit) instead of duplicating it.
@@ -330,7 +332,7 @@ def _run_step(step, savepoint: str, context: str) -> dict:
 		frappe.db.rollback(save_point=savepoint)
 		del frappe.message_log[messages_before:]
 
-		if isinstance(e, (frappe.ValidationError, frappe.PermissionError)):
+		if isinstance(e, (frappe.ValidationError, frappe.PermissionError)):  # noqa: UP038
 			message = str(e)
 		else:
 			frappe.log_error(title=f"Employee Setup failed: {context}", message=frappe.get_traceback())

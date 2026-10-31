@@ -8,7 +8,7 @@ Automatically closes old shift assignments when a new one is created
 
 import frappe
 from frappe import _
-from frappe.utils import getdate, add_days, today
+from frappe.utils import add_days, getdate, today
 
 
 def before_insert_shift_assignment(doc, method=None):
@@ -29,9 +29,9 @@ def before_insert_shift_assignment(doc, method=None):
 		filters={
 			"employee": doc.employee,
 			"status": "Active",
-			"docstatus": ["!=", 2]  # Not cancelled
+			"docstatus": ["!=", 2],  # Not cancelled
 		},
-		fields=["name", "start_date", "end_date"]
+		fields=["name", "start_date", "end_date"],
 	)
 
 	if not active_assignments:
@@ -49,20 +49,16 @@ def before_insert_shift_assignment(doc, method=None):
 		frappe.db.set_value(
 			"Shift Assignment",
 			assignment.name,
-			{
-				"end_date": end_date,
-				"status": "Inactive"
-			},
-			update_modified=True
+			{"end_date": end_date, "status": "Inactive"},
+			update_modified=True,
 		)
 
 		frappe.msgprint(
 			_("Previous Shift Assignment {0} has been closed with End Date {1} and set to Inactive.").format(
-				frappe.bold(assignment.name),
-				frappe.format(end_date, {"fieldtype": "Date"})
+				frappe.bold(assignment.name), frappe.format(end_date, {"fieldtype": "Date"})
 			),
 			title=_("Previous Assignment Closed"),
-			indicator="blue"
+			indicator="blue",
 		)
 
 	# Commit the changes

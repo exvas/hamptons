@@ -38,7 +38,7 @@ def on_update_expense_claim(doc, method=None):
 		"total_amount": frappe.format(doc.total_claimed_amount, {"fieldtype": "Currency"}),
 		"claim_url": claim_url,
 		"workflow_state": workflow_state,
-		"doc_name": doc.name
+		"doc_name": doc.name,
 	}
 
 	if workflow_state == "Pending":
@@ -76,7 +76,8 @@ def _get_hod_recipients(doc):
 			recipients.append(hod_email)
 
 	if not recipients and employee.department:
-		dept_hods = frappe.db.sql("""
+		dept_hods = frappe.db.sql(
+			"""
 			SELECT DISTINCT u.email
 			FROM `tabUser` u
 			INNER JOIN `tabHas Role` hr ON hr.parent = u.name
@@ -85,7 +86,10 @@ def _get_hod_recipients(doc):
 			AND e.department = %s
 			AND u.enabled = 1
 			AND u.email IS NOT NULL
-		""", (employee.department,), as_dict=True)
+		""",
+			(employee.department,),
+			as_dict=True,
+		)
 		recipients.extend([d.email for d in dept_hods if d.email])
 
 	return list(set(recipients))
@@ -110,15 +114,15 @@ def _get_notification_content(notification_type, context):
 	templates = {
 		"pending_approval": (
 			_("Expense Claim Pending Your Approval - {0}").format(emp_name),
-			f"<h3>Expense Claim Pending Approval</h3><p>Dear HOD,</p><p><strong>{emp_name}</strong> ({emp_id}) has submitted an expense claim that requires your approval.</p>{table}{btn_green}"
+			f"<h3>Expense Claim Pending Approval</h3><p>Dear HOD,</p><p><strong>{emp_name}</strong> ({emp_id}) has submitted an expense claim that requires your approval.</p>{table}{btn_green}",
 		),
 		"approved": (
 			_("Your Expense Claim - Approved"),
-			f"<h3>Expense Claim Approved</h3><p>Dear {emp_name},</p><p>Your expense claim has been <strong style='color: green;'>approved</strong>.</p>{table}{btn_green}"
+			f"<h3>Expense Claim Approved</h3><p>Dear {emp_name},</p><p>Your expense claim has been <strong style='color: green;'>approved</strong>.</p>{table}{btn_green}",
 		),
 		"rejected": (
 			_("Your Expense Claim - Rejected"),
-			f"<h3>Expense Claim Rejected</h3><p>Dear {emp_name},</p><p>Your expense claim has been <strong style='color: red;'>rejected</strong>.</p>{table}<p>Please contact your HOD for more information.</p>{btn_red}"
+			f"<h3>Expense Claim Rejected</h3><p>Dear {emp_name},</p><p>Your expense claim has been <strong style='color: red;'>rejected</strong>.</p>{table}<p>Please contact your HOD for more information.</p>{btn_red}",
 		),
 	}
 
@@ -127,7 +131,7 @@ def _get_notification_content(notification_type, context):
 
 	return (
 		_("Expense Claim Update - {0}").format(emp_name),
-		f"<h3>Expense Claim Update</h3><p>Expense claim for <strong>{emp_name}</strong> has been updated. Current Status: {context['workflow_state']}</p><p><a href='{claim_url}'>View Expense Claim</a></p>"
+		f"<h3>Expense Claim Update</h3><p>Expense claim for <strong>{emp_name}</strong> has been updated. Current Status: {context['workflow_state']}</p><p><a href='{claim_url}'>View Expense Claim</a></p>",
 	)
 
 
@@ -136,12 +140,13 @@ def _log_workflow_action(doc, from_state, to_state):
 	action = "Approve" if "Approved" in to_state else "Reject" if "Rejected" in to_state else "Submit"
 	try:
 		from hamptons.hamptons.doctype.workflow_action_log.workflow_action_log import log_workflow_action
+
 		log_workflow_action(
 			reference_doctype="Expense Claim",
 			reference_name=doc.name,
 			action=action,
 			from_state=from_state or "",
-			to_state=to_state
+			to_state=to_state,
 		)
 	except Exception as e:
-		frappe.logger().error(f"Failed to log workflow action for {doc.name}: {str(e)}")
+		frappe.logger().error(f"Failed to log workflow action for {doc.name}: {e!s}")

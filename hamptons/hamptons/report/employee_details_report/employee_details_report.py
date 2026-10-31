@@ -13,76 +13,36 @@ def execute(filters=None):
 
 def get_columns():
 	return [
-		{
-			"fieldname": "employee",
-			"label": _("Employee ID"),
-			"fieldtype": "Data",
-			"width": 120
-		},
-		{
-			"fieldname": "employee_name",
-			"label": _("Employee Full Name"),
-			"fieldtype": "Data",
-			"width": 230
-		},
-		{
-			"fieldname": "date_of_birth",
-			"label": _("Date of Birth"),
-			"fieldtype": "Date",
-			"width": 120
-		},
-		{
-			"fieldname": "date_of_joining",
-			"label": _("Date of Joining"),
-			"fieldtype": "Date",
-			"width": 140
-		},
+		{"fieldname": "employee", "label": _("Employee ID"), "fieldtype": "Data", "width": 120},
+		{"fieldname": "employee_name", "label": _("Employee Full Name"), "fieldtype": "Data", "width": 230},
+		{"fieldname": "date_of_birth", "label": _("Date of Birth"), "fieldtype": "Date", "width": 120},
+		{"fieldname": "date_of_joining", "label": _("Date of Joining"), "fieldtype": "Date", "width": 140},
 		{
 			"fieldname": "department",
 			"label": _("Department"),
 			"fieldtype": "Link",
 			"options": "Department",
-			"width": 180
+			"width": 180,
 		},
 		{
 			"fieldname": "designation",
 			"label": _("Designation"),
 			"fieldtype": "Link",
 			"options": "Designation",
-			"width": 180
+			"width": 180,
 		},
-		{
-			"fieldname": "branch",
-			"label": _("Branch"),
-			"fieldtype": "Link",
-			"options": "Branch",
-			"width": 150
-		},
-		{
-			"fieldname": "custom_nationality",
-			"label": _("Nationality"),
-			"fieldtype": "Data",
-			"width": 120
-		},
-		{
-			"fieldname": "reports_to_name",
-			"label": _("Reports To"),
-			"fieldtype": "Data",
-			"width": 180
-		},
-		{
-			"fieldname": "custom_religion",
-			"label": _("Religion"),
-			"fieldtype": "Data",
-			"width": 120
-		},
+		{"fieldname": "branch", "label": _("Branch"), "fieldtype": "Link", "options": "Branch", "width": 150},
+		{"fieldname": "custom_nationality", "label": _("Nationality"), "fieldtype": "Data", "width": 120},
+		{"fieldname": "reports_to_name", "label": _("Reports To"), "fieldtype": "Data", "width": 180},
+		{"fieldname": "custom_religion", "label": _("Religion"), "fieldtype": "Data", "width": 120},
 	]
 
 
 def get_data(filters):
 	conditions = get_conditions(filters)
 
-	data = frappe.db.sql("""
+	data = frappe.db.sql(
+		"""
 		SELECT
 			e.name as employee,
 			e.employee_name,
@@ -99,7 +59,10 @@ def get_data(filters):
 		WHERE e.status = 'Active'
 		{conditions}
 		ORDER BY e.name
-	""".format(conditions=conditions), filters, as_dict=1)
+	""".format(conditions=conditions),
+		filters,
+		as_dict=1,
+	)
 
 	return data
 

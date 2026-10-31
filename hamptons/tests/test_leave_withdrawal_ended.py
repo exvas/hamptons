@@ -27,12 +27,25 @@ def run(worked, not_worked):
 	frappe.db.commit = no_commit
 	results = []
 	try:
-		for check in (check_worked_leave_allowed, check_not_worked_leave_refused, check_rebuild_attendance, check_withdrawable_list):
+		for check in (
+			check_worked_leave_allowed,
+			check_not_worked_leave_refused,
+			check_rebuild_attendance,
+			check_withdrawable_list,
+		):
 			frappe.db.savepoint("lwr_check")
 			try:
-				results.append({"check": check.__name__, "status": "PASS", **(check(worked, not_worked) or {})})
+				results.append(
+					{"check": check.__name__, "status": "PASS", **(check(worked, not_worked) or {})}
+				)
 			except Exception as e:
-				results.append({"check": check.__name__, "status": "FAIL", "error": f"{type(e).__name__}: {frappe.utils.strip_html(str(e))}"})
+				results.append(
+					{
+						"check": check.__name__,
+						"status": "FAIL",
+						"error": f"{type(e).__name__}: {frappe.utils.strip_html(str(e))}",
+					}
+				)
 			finally:
 				frappe.db.rollback(save_point="lwr_check")
 				frappe.clear_messages()
@@ -77,20 +90,28 @@ def check_rebuild_attendance(worked, not_worked):
 	"""Simulate the state after the leave is cancelled, then rebuild from check-ins."""
 	la, doc = _request(worked)
 	att = frappe.get_all(
-		"Attendance", filters={"leave_application": worked, "docstatus": 1}, fields=["name", "attendance_date"]
+		"Attendance",
+		filters={"leave_application": worked, "docstatus": 1},
+		fields=["name", "attendance_date"],
 	)
 	_assert(att, "leave has no attendance to cancel")
 	for a in att:
 		frappe.db.set_value("Attendance", a.name, "docstatus", 2, update_modified=False)
 	# cancel_leave_application() runs before the rebuild in the real flow
-	frappe.db.set_value("Leave Application", worked, {"docstatus": 2, "status": "Cancelled"}, update_modified=False)
+	frappe.db.set_value(
+		"Leave Application", worked, {"docstatus": 2, "status": "Cancelled"}, update_modified=False
+	)
 
 	doc.name = "LWR-TEST"
 	doc.rebuild_attendance_for_past_days()
 
 	rows = frappe.get_all(
 		"Attendance",
-		filters={"employee": la.employee, "attendance_date": ("between", [la.from_date, la.to_date]), "docstatus": ("<", 2)},
+		filters={
+			"employee": la.employee,
+			"attendance_date": ("between", [la.from_date, la.to_date]),
+			"docstatus": ("<", 2),
+		},
 		fields=["attendance_date", "status", "in_time", "out_time"],
 		order_by="attendance_date",
 	)

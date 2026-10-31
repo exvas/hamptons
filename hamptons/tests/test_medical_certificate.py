@@ -11,7 +11,7 @@ import json
 import frappe
 from frappe.utils import add_days, getdate, today
 
-from hamptons.tests.test_leave_pending_balance import _run_check, _assert
+from hamptons.tests.test_leave_pending_balance import _assert, _run_check
 
 CERT_TYPES = ("Sick Leave", "Caregiver leave")
 
@@ -21,8 +21,14 @@ def run():
 	frappe.flags.mute_emails = True
 	import hamptons.overrides.leave_application as override
 
-	saved = (override._send_notification_to_hod, override._send_notification_to_employee, override._log_workflow_action)
-	override._send_notification_to_hod = override._send_notification_to_employee = override._log_workflow_action = lambda *a, **k: None
+	saved = (
+		override._send_notification_to_hod,
+		override._send_notification_to_employee,
+		override._log_workflow_action,
+	)
+	override._send_notification_to_hod = override._send_notification_to_employee = (
+		override._log_workflow_action
+	) = lambda *a, **k: None
 	checks = [
 		check_desk_save_without_certificate_refused,
 		check_desk_save_with_certificate_field_allowed,
@@ -35,7 +41,11 @@ def run():
 			results.append(_run_check(check))
 	finally:
 		frappe.db.rollback()
-		override._send_notification_to_hod, override._send_notification_to_employee, override._log_workflow_action = saved
+		(
+			override._send_notification_to_hod,
+			override._send_notification_to_employee,
+			override._log_workflow_action,
+		) = saved
 		frappe.local.form_dict.pop("cmd", None)
 		frappe.flags.mute_emails = False
 	print(json.dumps(results, indent=2, default=str))
@@ -79,7 +89,10 @@ def check_mobile_insert_allowed_then_approval_blocked_until_attached():
 		doc = _apply(emp, "Sick Leave", start, 1)
 	finally:
 		frappe.local.form_dict.pop("cmd", None)
-	_assert(doc.docstatus == 0 and not doc.custom_medical_certificate, "mobile insert should be a draft without certificate")
+	_assert(
+		doc.docstatus == 0 and not doc.custom_medical_certificate,
+		"mobile insert should be a draft without certificate",
+	)
 
 	# HOD tries to approve before any attachment -> blocked
 	doc.status = "Approved"
@@ -108,7 +121,9 @@ def check_mobile_insert_allowed_then_approval_blocked_until_attached():
 	doc.reload()
 	doc.status = "Approved"
 	doc.submit()
-	_assert(frappe.db.get_value("Leave Application", doc.name, "docstatus") == 1, "not approved after attaching")
+	_assert(
+		frappe.db.get_value("Leave Application", doc.name, "docstatus") == 1, "not approved after attaching"
+	)
 	return {"application": doc.name, "certificate": filled}
 
 
@@ -122,14 +137,19 @@ def check_annual_leave_unaffected():
 
 
 def _existing_file_url():
-	url = frappe.db.get_value("File", {"is_private": 1, "is_folder": 0, "file_url": ("like", "/private/files/%")}, "file_url")
+	url = frappe.db.get_value(
+		"File", {"is_private": 1, "is_folder": 0, "file_url": ("like", "/private/files/%")}, "file_url"
+	)
 	_assert(url, "need an existing private file to reference")
 	return url
 
 
 def _employee():
 	template = frappe.db.get_value(
-		"Employee", {"status": "Active", "holiday_list": ("is", "set")}, ["company", "holiday_list", "leave_approver"], as_dict=True
+		"Employee",
+		{"status": "Active", "holiday_list": ("is", "set")},
+		["company", "holiday_list", "leave_approver"],
+		as_dict=True,
 	)
 	year_end = getdate(f"{getdate(today()).year}-12-31")
 	emp = frappe.get_doc(

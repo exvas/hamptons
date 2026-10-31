@@ -30,6 +30,7 @@ def after_insert_attendance_regularization(doc, method=None):
 	late_formatted = None
 	if doc.late:
 		from datetime import timedelta
+
 		if isinstance(doc.late, timedelta):
 			total_secs = int(doc.late.total_seconds())
 			hours = total_secs // 3600
@@ -42,8 +43,8 @@ def after_insert_attendance_regularization(doc, method=None):
 	# Queue email notification to be sent AFTER the transaction is committed
 	# This prevents sending emails for records that get rolled back
 	frappe.enqueue(
-		'hamptons.overrides.attendance_regularization.send_ar_notification_email',
-		queue='short',
+		"hamptons.overrides.attendance_regularization.send_ar_notification_email",
+		queue="short",
 		timeout=300,
 		at_front=False,
 		ar_name=doc.name,
@@ -55,7 +56,7 @@ def after_insert_attendance_regularization(doc, method=None):
 		end_time=str(doc.end_time) if doc.end_time else None,
 		late=late_formatted,
 		status=doc.status,
-		reason=reason
+		reason=reason,
 	)
 
 
@@ -73,8 +74,8 @@ def determine_regularization_reason(doc):
 
 	# Check items for missing IN or OUT
 	items = doc.attendance_regularization_item or []
-	has_in = any(item.log_type == 'IN' for item in items)
-	has_out = any(item.log_type == 'OUT' for item in items)
+	has_in = any(item.log_type == "IN" for item in items)
+	has_out = any(item.log_type == "OUT" for item in items)
 
 	if not has_in:
 		reasons.append("Missing Check-in")
@@ -88,7 +89,9 @@ def determine_regularization_reason(doc):
 	return ", ".join(reasons) if reasons else "Attendance Review Required"
 
 
-def send_ar_notification_email(ar_name, employee, employee_name, posting_date, shift, start_time, end_time, late, status, reason=None):
+def send_ar_notification_email(
+	ar_name, employee, employee_name, posting_date, shift, start_time, end_time, late, status, reason=None
+):
 	"""
 	Send notification email to employee about Attendance Regularization.
 	This is called from a background job AFTER the record is committed.
@@ -128,9 +131,7 @@ def send_ar_notification_email(ar_name, employee, employee_name, posting_date, s
 	recipients = list(set(filter(None, [employee_email, user_email])))
 
 	if not recipients:
-		frappe.logger().warning(
-			f"No email found for employee {employee} - {employee_name}"
-		)
+		frappe.logger().warning(f"No email found for employee {employee} - {employee_name}")
 		return
 
 	# Get URL to the document
@@ -168,7 +169,7 @@ def send_ar_notification_email(ar_name, employee, employee_name, posting_date, s
 		end_time=end_time or "-",
 		late_row=late_row,
 		status=status,
-		regularization_url=regularization_url
+		regularization_url=regularization_url,
 	)
 
 	try:
@@ -178,12 +179,10 @@ def send_ar_notification_email(ar_name, employee, employee_name, posting_date, s
 			message=message,
 			reference_doctype="Attendance Regularization",
 			reference_name=ar_name,
-			now=True
+			now=True,
 		)
 		frappe.logger().info(
 			f"Sent Attendance Regularization notification to {', '.join(recipients)} for {ar_name}"
 		)
 	except Exception as e:
-		frappe.logger().error(
-			f"Failed to send Attendance Regularization notification for {ar_name}: {str(e)}"
-		)
+		frappe.logger().error(f"Failed to send Attendance Regularization notification for {ar_name}: {e!s}")

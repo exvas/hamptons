@@ -10,7 +10,7 @@ Uses Employee Family Info child table for per-family-member tracking.
 
 import frappe
 from frappe import _
-from frappe.utils import today, add_days, getdate, formatdate
+from frappe.utils import add_days, formatdate, getdate, today
 
 
 def send_visa_expiry_alerts():
@@ -32,10 +32,7 @@ def send_visa_expiry_alerts():
 	recipients_raw = settings.email_recipients or ""
 
 	# Parse recipients (comma or newline separated)
-	recipients = [
-		r.strip() for r in recipients_raw.replace("\n", ",").split(",")
-		if r.strip()
-	]
+	recipients = [r.strip() for r in recipients_raw.replace("\n", ",").split(",") if r.strip()]
 
 	if not recipients:
 		frappe.logger().warning("Visa expiry alerts enabled but no email recipients configured")
@@ -45,7 +42,8 @@ def send_visa_expiry_alerts():
 	target_date = add_days(today(), before_days)
 
 	# Find family members with expiring visas from the child table
-	expiring = frappe.db.sql("""
+	expiring = frappe.db.sql(
+		"""
 		SELECT fi.family_member_name, fi.relationship, fi.id_card, fi.visa_date, fi.remarks,
 			   e.name as employee_id, e.employee_name, e.department
 		FROM `tabEmployee Family Info` fi
@@ -55,19 +53,24 @@ def send_visa_expiry_alerts():
 		AND fi.visa_date <= %s
 		AND fi.visa_date >= %s
 		ORDER BY fi.visa_date ASC
-	""", (target_date, today()), as_dict=True)
+	""",
+		(target_date, today()),
+		as_dict=True,
+	)
 
 	if not expiring:
 		return
 
 	# Build email content
-	subject = _("Family Visa Expiry Alert - {0} Record(s)").format(len(expiring))
+	subject = _("Family Visa Expiry Alert - {0} Record(s)").format(len(expiring))  # noqa: F841
 
 	rows = ""
 	for rec in expiring:
 		days_remaining = (getdate(rec.visa_date) - getdate(today())).days
 		if days_remaining < 0:
-			status = f'<span style="color: red; font-weight: bold;">Expired {abs(days_remaining)} days ago</span>'
+			status = (
+				f'<span style="color: red; font-weight: bold;">Expired {abs(days_remaining)} days ago</span>'
+			)
 		elif days_remaining == 0:
 			status = '<span style="color: red; font-weight: bold;">Expires Today</span>'
 		else:
@@ -107,7 +110,7 @@ def send_visa_expiry_alerts():
 		</tbody>
 	</table>
 	<p style="margin-top: 15px; color: #666;">This is an automated alert from Hamptons HRMS.</p>
-	"""
+	"""  # noqa: F841
 
 	# Visa expiry email notifications are disabled
 	frappe.logger().info(
