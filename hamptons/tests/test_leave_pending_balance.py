@@ -11,7 +11,6 @@ import json
 
 import frappe
 from frappe.utils import add_days, getdate, today
-
 from hrms.hr.doctype.leave_application.leave_application import InsufficientLeaveBalanceError
 
 LEAVE_TYPE = "Annual Leave"
@@ -63,7 +62,12 @@ def _run_check(check):
 	try:
 		return {"check": check.__name__, "status": "PASS", **(check() or {})}
 	except Exception as e:
-		return {"check": check.__name__, "status": "FAIL", "error": f"{type(e).__name__}: {e}", "traceback": frappe.get_traceback()[-1200:]}
+		return {
+			"check": check.__name__,
+			"status": "FAIL",
+			"error": f"{type(e).__name__}: {e}",
+			"traceback": frappe.get_traceback()[-1200:],
+		}
 	finally:
 		frappe.db.rollback(save_point="hamptons_pending_check")
 		frappe.clear_messages()
@@ -251,15 +255,29 @@ def simulate_application(employee, from_date, days, leave_type=LEAVE_TYPE):
 
 	frappe.set_user("Administrator")
 	frappe.flags.mute_emails = True
-	saved = (override._send_notification_to_hod, override._send_notification_to_employee, override._log_workflow_action)
-	override._send_notification_to_hod = override._send_notification_to_employee = override._log_workflow_action = lambda *a, **k: None
+	saved = (
+		override._send_notification_to_hod,
+		override._send_notification_to_employee,
+		override._log_workflow_action,
+	)
+	override._send_notification_to_hod = override._send_notification_to_employee = (
+		override._log_workflow_action
+	) = lambda *a, **k: None
 	try:
 		doc = _apply(employee, getdate(from_date), days) if leave_type == LEAVE_TYPE else None
 		out = {"result": "ACCEPTED", "name": doc.name, "leave_balance": doc.leave_balance}
 	except Exception as e:
-		out = {"result": "REFUSED", "error_type": type(e).__name__, "message": frappe.utils.strip_html(str(e))}
+		out = {
+			"result": "REFUSED",
+			"error_type": type(e).__name__,
+			"message": frappe.utils.strip_html(str(e)),
+		}
 	finally:
 		frappe.db.rollback()
-		override._send_notification_to_hod, override._send_notification_to_employee, override._log_workflow_action = saved
+		(
+			override._send_notification_to_hod,
+			override._send_notification_to_employee,
+			override._log_workflow_action,
+		) = saved
 	print(json.dumps(out, default=str))
 	return out

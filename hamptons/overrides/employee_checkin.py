@@ -1,10 +1,11 @@
 # Copyright (c) 2024, Momscode and contributors
 # For license information, please see license.txt
 
+from datetime import datetime, timedelta
+
 import frappe
 from frappe import _
-from frappe.utils import getdate, get_datetime, now_datetime, time_diff_in_hours, get_time
-from datetime import datetime, timedelta
+from frappe.utils import get_datetime, get_time, getdate, now_datetime, time_diff_in_hours
 
 
 def is_holiday_or_weekly_off(employee, check_date):
@@ -33,13 +34,7 @@ def is_holiday_or_weekly_off(employee, check_date):
 		return False
 
 	# Check if the date is in the holiday list (includes weekly_off days)
-	is_holiday = frappe.db.exists(
-		"Holiday",
-		{
-			"parent": holiday_list,
-			"holiday_date": check_date
-		}
-	)
+	is_holiday = frappe.db.exists("Holiday", {"parent": holiday_list, "holiday_date": check_date})
 
 	return bool(is_holiday)
 
@@ -48,19 +43,20 @@ def get_active_shift_assignment(employee, date=None):
 	"""
 	Get the active Shift Assignment for an employee on a specific date.
 	If multiple assignments exist, returns the one with the most recent start date.
-	
+
 	Args:
 		employee: Employee ID
 		date: Date to check (defaults to today)
-	
+
 	Returns:
 		Shift Assignment document or None
 	"""
 	if not date:
 		date = getdate()
-	
+
 	# Query for active shift assignments on the given date
-	shift_assignments = frappe.db.sql("""
+	shift_assignments = frappe.db.sql(
+		"""
 		SELECT name, shift_type, start_date, end_date
 		FROM `tabShift Assignment`
 		WHERE employee = %s
@@ -70,35 +66,38 @@ def get_active_shift_assignment(employee, date=None):
 		)
 		ORDER BY start_date DESC
 		LIMIT 1
-	""", (employee, date, date), as_dict=1)
-	
+	""",
+		(employee, date, date),
+		as_dict=1,
+	)
+
 	if shift_assignments:
 		return frappe.get_doc("Shift Assignment", shift_assignments[0].name)
-	
+
 	return None
 
 
 def validate_shift_type(shift_type_name):
 	"""
 	Validate that the Shift Type has valid Start Time and End Time values.
-	
+
 	Args:
 		shift_type_name: Name of the Shift Type
-	
+
 	Returns:
 		Shift Type document
-	
+
 	Raises:
 		ValidationError if shift type is invalid
 	"""
 	shift_type = frappe.get_doc("Shift Type", shift_type_name)
-	
+
 	if not shift_type.start_time:
 		frappe.throw(_("Shift Type {0} does not have a valid Start Time").format(shift_type_name))
-	
+
 	if not shift_type.end_time:
 		frappe.throw(_("Shift Type {0} does not have a valid End Time").format(shift_type_name))
-	
+
 	return shift_type
 
 
@@ -199,42 +198,43 @@ def should_create_regularization(checkin_doc):
 	"""
 	Determine if an Attendance Regularization should be created based on checkin/checkout.
 	Creates regularization immediately for late entries, and after shift end for early exits.
-	
+
 	Args:
 		checkin_doc: Employee Checkin document
-	
+
 	Returns:
 		tuple (should_create: bool, reason: str, late_time: time or None)
 	"""
 	# Get active shift assignment
 	checkin_date = getdate(checkin_doc.time)
 	shift_assignment = get_active_shift_assignment(checkin_doc.employee, checkin_date)
-	
+
 	if not shift_assignment:
 		return False, "No active shift assignment found", None
-	
+
 	# Validate shift type
 	try:
 		shift_type = validate_shift_type(shift_assignment.shift_type)
 	except Exception as e:
 		frappe.log_error(message=str(e), title="Shift Type Validation Error")
 		return False, str(e), None
-	
+
 	current_time = now_datetime()
 	checkin_datetime = get_datetime(checkin_doc.time)
-	
+
 	# Check for late entry (IN log) - Create immediately
 	if checkin_doc.log_type == "IN":
 		grace_period = shift_type.late_entry_grace_period or 0
 		late_time = calculate_late_time(checkin_datetime, shift_type.start_time, grace_period)
-		
+
 		if late_time:
 			return True, "Late entry", late_time
-	
+
 	# Check for early exit (OUT log) - Only after shift end time
 	elif checkin_doc.log_type == "OUT":
 		# Convert shift_type.end_time from timedelta to time if needed
 		from datetime import time as dt_time
+
 		shift_end = shift_type.end_time
 		if isinstance(shift_end, timedelta):
 			total_seconds = int(shift_end.total_seconds())
@@ -256,7 +256,7 @@ def should_create_regularization(checkin_doc):
 
 		if early_time:
 			return True, "Early exit", early_time
-	
+
 	return False, "No regularization needed", None
 
 
@@ -264,7 +264,7 @@ def create_or_update_attendance_regularization(checkin_doc, shift_assignment, sh
 	"""
 	Create or update an Attendance Regularization document for the employee checkin.
 	Now works with the new structure where one regularization can have multiple checkins.
-	
+
 	Args:
 		checkin_doc: Employee Checkin document
 		shift_assignment: Shift Assignment document
@@ -272,104 +272,112 @@ def create_or_update_attendance_regularization(checkin_doc, shift_assignment, sh
 		late_time: Time difference as time object
 	"""
 	# Check if checkin already has a regularization
-	existing_reg = frappe.db.get_value("Attendance Regularization Item",
-									   {"employee_checkin": checkin_doc.name},
-									   "parent")
-	
+	existing_reg = frappe.db.get_value(
+		"Attendance Regularization Item", {"employee_checkin": checkin_doc.name}, "parent"
+	)
+
 	if existing_reg:
 		frappe.log_error(
 			message=f"Checkin {checkin_doc.name} already linked to regularization {existing_reg}",
-			title="Duplicate Regularization Attempt"
+			title="Duplicate Regularization Attempt",
 		)
 		return
-	
+
 	checkin_date = getdate(checkin_doc.time)
-	
+
 	# Check if regularization exists for this employee and date
 	existing_regularizations = frappe.db.get_all(
 		"Attendance Regularization",
-		filters={
-			"employee": checkin_doc.employee,
-			"posting_date": checkin_date,
-			"docstatus": ["!=", 2]
-		},
-		fields=["name", "docstatus"]
+		filters={"employee": checkin_doc.employee, "posting_date": checkin_date, "docstatus": ["!=", 2]},
+		fields=["name", "docstatus"],
 	)
-	
+
 	if existing_regularizations:
 		# Check if any are in draft status (docstatus = 0)
 		draft_regularizations = [r for r in existing_regularizations if r.docstatus == 0]
-		
+
 		if draft_regularizations:
 			# Add to existing draft regularization
 			regularization = frappe.get_doc("Attendance Regularization", draft_regularizations[0].name)
-			
+
 			# Add new checkin item
-			regularization.append("attendance_regularization_item", {
-				"time": checkin_doc.time,
-				"log_type": checkin_doc.log_type,
-				"device_id": checkin_doc.device_id if hasattr(checkin_doc, 'device_id') else None,
-				"employee_checkin": checkin_doc.name
-			})
-			
+			regularization.append(
+				"attendance_regularization_item",
+				{
+					"time": checkin_doc.time,
+					"log_type": checkin_doc.log_type,
+					"device_id": checkin_doc.device_id if hasattr(checkin_doc, "device_id") else None,
+					"employee_checkin": checkin_doc.name,
+				},
+			)
+
 			# Update late time if this checkin is later
 			if late_time and (not regularization.late or late_time > regularization.late):
 				regularization.late = late_time
-			
+
 			regularization.save(ignore_permissions=True)
-			
+
 			# Update the checkin with regularization reference
-			frappe.db.set_value("Employee Checkin", checkin_doc.name,
-								"custom_attendance_regularization", regularization.name)
-			
-			frappe.msgprint(_("Added checkin to existing Attendance Regularization {0}").format(
-				regularization.name
-			))
+			frappe.db.set_value(
+				"Employee Checkin", checkin_doc.name, "custom_attendance_regularization", regularization.name
+			)
+
+			frappe.msgprint(
+				_("Added checkin to existing Attendance Regularization {0}").format(regularization.name)
+			)
 			return
 		else:
 			# All regularizations are submitted/cancelled, log this
 			frappe.log_error(
 				message=f"All regularizations for {checkin_doc.employee} on {checkin_date} are submitted/cancelled",
-				title="Cannot Add to Regularization"
+				title="Cannot Add to Regularization",
 			)
 			return
-	
+
 	# Create new regularization document
-	regularization = frappe.get_doc({
-		"doctype": "Attendance Regularization",
-		"employee": checkin_doc.employee,
-		"employee_name": checkin_doc.employee_name,
-		"posting_date": checkin_date,
-		"log_type": checkin_doc.log_type,
-		"shift": shift_type.name,
-		"start_time": shift_type.start_time,
-		"end_time": shift_type.end_time,
-		"late": late_time,
-		"status": "Pending"
-	})
-	
+	regularization = frappe.get_doc(
+		{
+			"doctype": "Attendance Regularization",
+			"employee": checkin_doc.employee,
+			"employee_name": checkin_doc.employee_name,
+			"posting_date": checkin_date,
+			"log_type": checkin_doc.log_type,
+			"shift": shift_type.name,
+			"start_time": shift_type.start_time,
+			"end_time": shift_type.end_time,
+			"late": late_time,
+			"status": "Pending",
+		}
+	)
+
 	# Get reports_to from employee
 	employee = frappe.get_doc("Employee", checkin_doc.employee)
 	if employee.reports_to:
 		regularization.reports_to = employee.reports_to
-	
+
 	# Add checkin item
-	regularization.append("attendance_regularization_item", {
-		"time": checkin_doc.time,
-		"log_type": checkin_doc.log_type,
-		"device_id": checkin_doc.device_id if hasattr(checkin_doc, 'device_id') else None,
-		"employee_checkin": checkin_doc.name
-	})
-	
+	regularization.append(
+		"attendance_regularization_item",
+		{
+			"time": checkin_doc.time,
+			"log_type": checkin_doc.log_type,
+			"device_id": checkin_doc.device_id if hasattr(checkin_doc, "device_id") else None,
+			"employee_checkin": checkin_doc.name,
+		},
+	)
+
 	regularization.insert(ignore_permissions=True)
-	
+
 	# Update the checkin with regularization reference
-	frappe.db.set_value("Employee Checkin", checkin_doc.name,
-						"custom_attendance_regularization", regularization.name)
-	
-	frappe.msgprint(_("Attendance Regularization {0} created for {1}").format(
-		regularization.name, checkin_doc.employee_name
-	))
+	frappe.db.set_value(
+		"Employee Checkin", checkin_doc.name, "custom_attendance_regularization", regularization.name
+	)
+
+	frappe.msgprint(
+		_("Attendance Regularization {0} created for {1}").format(
+			regularization.name, checkin_doc.employee_name
+		)
+	)
 
 
 def on_employee_checkin_submit(doc, method=None):
@@ -391,9 +399,7 @@ def on_employee_checkin_submit(doc, method=None):
 	"""
 	# Check if Attendance Regularization DocType exists on this site
 	if not frappe.db.exists("DocType", "Attendance Regularization"):
-		frappe.logger().info(
-			f"Skipping regularization check for {doc.name}: DocType not found"
-		)
+		frappe.logger().info(f"Skipping regularization check for {doc.name}: DocType not found")
 		return
 
 	checkin_date = getdate(doc.time)
@@ -408,17 +414,15 @@ def on_employee_checkin_submit(doc, method=None):
 
 		# Enqueue consolidation for the punch date in background
 		frappe.enqueue(
-			'hamptons.overrides.employee_checkin.consolidate_attendance_for_date',
-			queue='short',
+			"hamptons.overrides.employee_checkin.consolidate_attendance_for_date",
+			queue="short",
 			timeout=300,
 			processing_date=checkin_date,
 			is_retry=True,
-			now=False
+			now=False,
 		)
 
-		frappe.logger().info(
-			f"Queued consolidation for {checkin_date} due to late-synced checkin {doc.name}"
-		)
+		frappe.logger().info(f"Queued consolidation for {checkin_date} due to late-synced checkin {doc.name}")
 		return
 
 	# For same-day checkins: DO NOT create regularization immediately
@@ -443,19 +447,19 @@ def daily_attendance_regularization_job():
 	"""
 	# Check if Attendance Regularization DocType exists on this site
 	if not frappe.db.exists("DocType", "Attendance Regularization"):
-		frappe.logger().info(
-			"Skipping daily attendance regularization job: DocType not found on this site"
-		)
+		frappe.logger().info("Skipping daily attendance regularization job: DocType not found on this site")
 		return
 
-	from frappe.utils import getdate
 	from datetime import timedelta
+
+	from frappe.utils import getdate
 
 	today = getdate()
 	lookback_start = today - timedelta(days=30)
 
 	# CATCH-UP: Find all past dates with checkins but no attendance (up to 30 days back)
-	pending_dates = frappe.db.sql("""
+	pending_dates = frappe.db.sql(
+		"""
 		SELECT DISTINCT DATE(ec.time) as pending_date
 		FROM `tabEmployee Checkin` ec
 		WHERE DATE(ec.time) BETWEEN %s AND %s
@@ -467,7 +471,10 @@ def daily_attendance_regularization_job():
 			AND a.docstatus < 2
 		)
 		ORDER BY DATE(ec.time)
-	""", (lookback_start, today, today), as_dict=True)
+	""",
+		(lookback_start, today, today),
+		as_dict=True,
+	)
 
 	if pending_dates:
 		frappe.logger().info(
@@ -479,12 +486,12 @@ def daily_attendance_regularization_job():
 				frappe.db.commit()
 			except Exception as e:
 				frappe.log_error(
-					message=str(e),
-					title=f"Daily Attendance - Catch-up Error ({row.pending_date})"
+					message=str(e), title=f"Daily Attendance - Catch-up Error ({row.pending_date})"
 				)
 
 	# Process today
 	consolidate_attendance_for_date(today)
+
 
 @frappe.whitelist()
 def run_attendance_regularization_sync(days: int = 365, include_yesterday: bool = True):
@@ -496,52 +503,55 @@ def run_attendance_regularization_sync(days: int = 365, include_yesterday: bool 
 	if not frappe.db.exists("DocType", "Attendance Regularization"):
 		frappe.throw(_("Attendance Regularization DocType is not installed on this site"))
 
-	from frappe.utils import getdate
 	from datetime import timedelta
+
+	from frappe.utils import getdate
 
 	# Enqueue the job to run in background
 	frappe.enqueue(
-		'hamptons.overrides.employee_checkin.process_attendance_sync_background',
-		queue='long',
+		"hamptons.overrides.employee_checkin.process_attendance_sync_background",
+		queue="long",
 		timeout=3600,  # 1 hour timeout
 		days=days,
 		include_yesterday=include_yesterday,
-		now=False
+		now=False,
 	)
-	
+
 	end_date = getdate() - timedelta(days=1) if include_yesterday else getdate()
 	start_date = getdate() - timedelta(days=days)
-	
+
 	return {
 		"success": True,
 		"message": f"Background sync job started for {days} days (from {start_date} to {end_date})",
 		"start_date": str(start_date),
 		"end_date": str(end_date),
-		"note": "Processing in background. Check Attendance Regularization list for results."
+		"note": "Processing in background. Check Attendance Regularization list for results.",
 	}
+
 
 def process_attendance_sync_background(days: int = 365, include_yesterday: bool = True):
 	"""
 	Background job to process attendance consolidation.
 	This runs in a separate worker to avoid timeout.
 	"""
-	from frappe.utils import getdate
 	from datetime import timedelta
-	
+
+	from frappe.utils import getdate
+
 	end_date = getdate() - timedelta(days=1) if include_yesterday else getdate()
 	start_date = getdate() - timedelta(days=days)
-	
+
 	processed = 0
 	error_count = 0
 	summary = []
 	cur = start_date
-	
+
 	while cur <= end_date:
 		try:
 			stats = consolidate_attendance_for_date(cur)
 			processed += 1
 			summary.append({"date": str(cur), **stats})
-			
+
 			# Commit every 10 days to avoid long transactions
 			if processed % 10 == 0:
 				frappe.db.commit()
@@ -550,22 +560,22 @@ def process_attendance_sync_background(days: int = 365, include_yesterday: bool 
 			error_count += 1
 			frappe.log_error(message=str(e), title=f"Manual Regularization Sync Error - {cur}")
 		cur = cur + timedelta(days=1)
-	
+
 	# Final commit
 	frappe.db.commit()
-	
+
 	# Log completion
 	frappe.logger().info(
 		f"Attendance sync completed: {processed} days processed, {error_count} errors. "
 		f"Range: {start_date} to {end_date}"
 	)
-	
+
 	return {
 		"success": True,
 		"processed_days": processed,
 		"errors": error_count,
 		"start_date": str(start_date),
-		"end_date": str(end_date)
+		"end_date": str(end_date),
 	}
 
 
@@ -592,14 +602,14 @@ def consolidate_attendance_for_date(processing_date):
 		ORDER BY ec.employee, ec.time
 		""",
 		(processing_date,),
-		as_dict=True
+		as_dict=True,
 	)
-	
+
 	# Build map of employee -> list of checkins
 	emp_checks = {}
 	for r in rows:
 		emp_checks.setdefault(r["employee"], []).append(r)
-	
+
 	# Get employees with active shift assignment today
 	active_employees = frappe.db.sql(
 		"""
@@ -610,18 +620,18 @@ def consolidate_attendance_for_date(processing_date):
 		AND (sa.end_date IS NULL OR sa.end_date >= %s)
 		""",
 		(processing_date, processing_date),
-		as_dict=True
+		as_dict=True,
 	)
-	
+
 	created_attendance = 0
 	created_regularizations = 0
 	absents_marked = 0
 	leaves_marked = 0
-	
+
 	for sa in active_employees:
 		emp = sa["employee"]
 		shift_type_name = sa["shift_type"]
-		
+
 		# Skip if attendance date is before employee's joining date
 		emp_joining_date = frappe.db.get_value("Employee", emp, "date_of_joining")
 		if emp_joining_date:
@@ -629,19 +639,18 @@ def consolidate_attendance_for_date(processing_date):
 			emp_joining_date = getdate(emp_joining_date)
 			if processing_date < emp_joining_date:
 				continue
-		
+
 		shift_type = frappe.get_doc("Shift Type", shift_type_name)
-		
+
 		checks = emp_checks.get(emp, [])
-		
+
 		# No checkins -> mark based on approved leave or Absent
 		# But first check if it's a holiday or weekly off - don't mark Absent on those days
 		if not checks:
 			try:
 				# CRITICAL: Check if attendance already exists (from Attendance Request or other source)
 				existing_att = frappe.db.exists(
-					"Attendance",
-					{"employee": emp, "attendance_date": processing_date, "docstatus": ["<", 2]}
+					"Attendance", {"employee": emp, "attendance_date": processing_date, "docstatus": ["<", 2]}
 				)
 				if existing_att:
 					# Attendance already exists (draft or submitted), skip
@@ -665,22 +674,24 @@ def consolidate_attendance_for_date(processing_date):
 					LIMIT 1
 					""",
 					(emp, processing_date),
-					as_dict=True
+					as_dict=True,
 				)
 				if attendance_request:
 					ar = attendance_request[0]
 					# Create attendance based on Attendance Request
 					is_half_day = int(ar.get("half_day") or 0) == 1
 					att_status = "Half Day" if is_half_day else "Present"
-					attendance = frappe.get_doc({
-						"doctype": "Attendance",
-						"employee": emp,
-						"attendance_date": processing_date,
-						"shift": shift_type_name,
-						"status": att_status,
-						"attendance_request": ar.get("name"),
-						"company": frappe.defaults.get_user_default("Company")
-					})
+					attendance = frappe.get_doc(
+						{
+							"doctype": "Attendance",
+							"employee": emp,
+							"attendance_date": processing_date,
+							"shift": shift_type_name,
+							"status": att_status,
+							"attendance_request": ar.get("name"),
+							"company": frappe.defaults.get_user_default("Company"),
+						}
+					)
 					attendance.insert(ignore_permissions=True)
 					attendance.submit()
 					created_attendance += 1
@@ -699,44 +710,51 @@ def consolidate_attendance_for_date(processing_date):
 					LIMIT 1
 					""",
 					(emp, processing_date),
-					as_dict=True
+					as_dict=True,
 				)
 				if leave:
 					la = leave[0]
 					# Determine status: Half Day or On Leave
-					is_half_day = int(la.get("half_day") or 0) == 1 and la.get("half_day_date") == processing_date
+					is_half_day = (
+						int(la.get("half_day") or 0) == 1 and la.get("half_day_date") == processing_date
+					)
 					att_status = "Half Day" if is_half_day else "On Leave"
-					attendance = frappe.get_doc({
-						"doctype": "Attendance",
-						"employee": emp,
-						"attendance_date": processing_date,
-						"shift": shift_type_name,
-						"status": att_status,
-						"leave_type": la.get("leave_type"),
-						"company": frappe.defaults.get_user_default("Company")
-					})
+					attendance = frappe.get_doc(
+						{
+							"doctype": "Attendance",
+							"employee": emp,
+							"attendance_date": processing_date,
+							"shift": shift_type_name,
+							"status": att_status,
+							"leave_type": la.get("leave_type"),
+							"company": frappe.defaults.get_user_default("Company"),
+						}
+					)
 					attendance.insert(ignore_permissions=True)
 					attendance.submit()
 					leaves_marked += 1
 				else:
-					attendance = frappe.get_doc({
-						"doctype": "Attendance",
-						"employee": emp,
-						"attendance_date": processing_date,
-						"shift": shift_type_name,
-						"status": "Absent",
-						"company": frappe.defaults.get_user_default("Company")
-					})
+					attendance = frappe.get_doc(
+						{
+							"doctype": "Attendance",
+							"employee": emp,
+							"attendance_date": processing_date,
+							"shift": shift_type_name,
+							"status": "Absent",
+							"company": frappe.defaults.get_user_default("Company"),
+						}
+					)
 					attendance.insert(ignore_permissions=True)
 					attendance.submit()
 					absents_marked += 1
 			except Exception as e:
 				frappe.log_error(message=str(e), title="Daily Attendance - Absent/Leave Creation Error")
 			continue
-		
+
 		# Consolidate: Use time-based inference instead of relying on log_type
 		# Many biometric devices mark all checkins as "IN", so we infer from time sequence
 		from hamptons.overrides.attendance_utils import get_first_in_last_out
+
 		first_in, last_out = get_first_in_last_out(checks, use_inferred=True)
 
 		# Calculate late/early times using the new utility function
@@ -746,10 +764,10 @@ def consolidate_attendance_for_date(processing_date):
 		last_out_time = last_out["time"] if last_out else None
 
 		result = calculate_late_early_times(first_in_time, last_out_time, shift_type, processing_date)
-		needs_regularization = result['needs_regularization']
-		late_time_val = result['late_time']
+		needs_regularization = result["needs_regularization"]
+		late_time_val = result["late_time"]
 
-		late_enabled = bool(getattr(shift_type, "enable_late_entry_marking", False))
+		late_enabled = bool(getattr(shift_type, "enable_late_entry_marking", False))  # noqa: F841
 
 		# Calculate working hours for Half Day detection
 		working_hours = 0
@@ -779,7 +797,7 @@ def consolidate_attendance_for_date(processing_date):
 			LIMIT 1
 			""",
 			(emp, processing_date),
-			as_dict=True
+			as_dict=True,
 		)
 		has_half_day_request = False
 		if attendance_request_for_day:
@@ -800,12 +818,14 @@ def consolidate_attendance_for_date(processing_date):
 		try:
 			# Avoid duplicates: if Attendance already exists for the date, skip attendance creation
 			# but still check if regularization is needed
-			existing_att = frappe.db.exists("Attendance", {"employee": emp, "attendance_date": processing_date, "docstatus": ["<", 2]})
+			existing_att = frappe.db.exists(
+				"Attendance", {"employee": emp, "attendance_date": processing_date, "docstatus": ["<", 2]}
+			)
 			if existing_att:
 				att_doc = frappe.get_doc("Attendance", existing_att)
 
 				# Don't override attendance created via Leave Application or Attendance Request
-				is_leave_or_request = bool(att_doc.leave_type or getattr(att_doc, 'attendance_request', None))
+				is_leave_or_request = bool(att_doc.leave_type or getattr(att_doc, "attendance_request", None))
 
 				if not is_leave_or_request:
 					# Determine correct status from current checkin data
@@ -824,7 +844,9 @@ def consolidate_attendance_for_date(processing_date):
 					# Update out_time and working_hours when both IN and OUT exist
 					# Always update if new OUT time is later (more punches arrived since last run)
 					if first_in_time and last_out_time:
-						if not att_doc.out_time or get_datetime(last_out_time) > get_datetime(att_doc.out_time):
+						if not att_doc.out_time or get_datetime(last_out_time) > get_datetime(
+							att_doc.out_time
+						):
 							att_doc.db_set("out_time", last_out_time, update_modified=False)
 							att_doc.db_set("working_hours", round(working_hours, 2), update_modified=False)
 
@@ -835,54 +857,60 @@ def consolidate_attendance_for_date(processing_date):
 					# Update late/early flags
 					if late_time_val and not att_doc.late_entry:
 						att_doc.db_set("late_entry", 1, update_modified=False)
-					if result.get('early_exit_time') and not att_doc.early_exit:
+					if result.get("early_exit_time") and not att_doc.early_exit:
 						att_doc.db_set("early_exit", 1, update_modified=False)
 				# Don't skip - fall through to regularization check below
 			else:
 				# AUTO HALF DAY: If employee worked less than half day threshold, mark as Half Day
 				if is_half_day_by_hours and first_in and last_out:
-					attendance = frappe.get_doc({
-						"doctype": "Attendance",
-						"employee": emp,
-						"employee_name": frappe.db.get_value("Employee", emp, "employee_name"),
-						"attendance_date": processing_date,
-						"shift": shift_type_name,
-						"status": "Half Day",
-						"in_time": first_in_time,
-						"out_time": last_out_time,
-						"working_hours": round(working_hours, 2),
-						"late_entry": 1 if late_time_val else 0,
-						"early_exit": 1 if result.get('early_exit_time') else 0,
-						"company": frappe.defaults.get_user_default("Company")
-					})
+					attendance = frappe.get_doc(
+						{
+							"doctype": "Attendance",
+							"employee": emp,
+							"employee_name": frappe.db.get_value("Employee", emp, "employee_name"),
+							"attendance_date": processing_date,
+							"shift": shift_type_name,
+							"status": "Half Day",
+							"in_time": first_in_time,
+							"out_time": last_out_time,
+							"working_hours": round(working_hours, 2),
+							"late_entry": 1 if late_time_val else 0,
+							"early_exit": 1 if result.get("early_exit_time") else 0,
+							"company": frappe.defaults.get_user_default("Company"),
+						}
+					)
 					attendance.insert(ignore_permissions=True)
 					attendance.submit()
 					# Add comment explaining why Half Day
-					frappe.get_doc({
-						"doctype": "Comment",
-						"comment_type": "Comment",
-						"reference_doctype": "Attendance",
-						"reference_name": attendance.name,
-						"content": f"Auto-marked Half Day: Worked {working_hours:.2f} hours (threshold: {half_day_threshold} hours)"
-					}).insert(ignore_permissions=True)
+					frappe.get_doc(
+						{
+							"doctype": "Comment",
+							"comment_type": "Comment",
+							"reference_doctype": "Attendance",
+							"reference_name": attendance.name,
+							"content": f"Auto-marked Half Day: Worked {working_hours:.2f} hours (threshold: {half_day_threshold} hours)",
+						}
+					).insert(ignore_permissions=True)
 					created_attendance += 1
 
 				# ALWAYS create attendance when employee has both IN and OUT checkins
 				elif first_in and last_out:
-					attendance = frappe.get_doc({
-						"doctype": "Attendance",
-						"employee": emp,
-						"employee_name": frappe.db.get_value("Employee", emp, "employee_name"),
-						"attendance_date": processing_date,
-						"shift": shift_type_name,
-						"status": "Present",
-						"in_time": first_in_time,
-						"out_time": last_out_time,
-						"working_hours": round(working_hours, 2),
-						"late_entry": 1 if late_time_val else 0,
-						"early_exit": 1 if result.get('early_exit_time') else 0,
-						"company": frappe.defaults.get_user_default("Company")
-					})
+					attendance = frappe.get_doc(
+						{
+							"doctype": "Attendance",
+							"employee": emp,
+							"employee_name": frappe.db.get_value("Employee", emp, "employee_name"),
+							"attendance_date": processing_date,
+							"shift": shift_type_name,
+							"status": "Present",
+							"in_time": first_in_time,
+							"out_time": last_out_time,
+							"working_hours": round(working_hours, 2),
+							"late_entry": 1 if late_time_val else 0,
+							"early_exit": 1 if result.get("early_exit_time") else 0,
+							"company": frappe.defaults.get_user_default("Company"),
+						}
+					)
 					attendance.insert(ignore_permissions=True)
 					attendance.submit()
 					created_attendance += 1
@@ -890,32 +918,36 @@ def consolidate_attendance_for_date(processing_date):
 				# Single checkin (IN only, no OUT) - mark as Absent
 				# Employee must request attendance / regularization approval to change to Present
 				elif first_in and not last_out:
-					attendance = frappe.get_doc({
-						"doctype": "Attendance",
-						"employee": emp,
-						"employee_name": frappe.db.get_value("Employee", emp, "employee_name"),
-						"attendance_date": processing_date,
-						"shift": shift_type_name,
-						"status": "Absent",
-						"in_time": first_in_time,
-						"company": frappe.defaults.get_user_default("Company")
-					})
+					attendance = frappe.get_doc(
+						{
+							"doctype": "Attendance",
+							"employee": emp,
+							"employee_name": frappe.db.get_value("Employee", emp, "employee_name"),
+							"attendance_date": processing_date,
+							"shift": shift_type_name,
+							"status": "Absent",
+							"in_time": first_in_time,
+							"company": frappe.defaults.get_user_default("Company"),
+						}
+					)
 					attendance.insert(ignore_permissions=True)
 					attendance.submit()
 					created_attendance += 1
 
 				# Safety net: single checkin detected as OUT only (no IN) - still mark Absent
 				elif last_out and not first_in:
-					attendance = frappe.get_doc({
-						"doctype": "Attendance",
-						"employee": emp,
-						"employee_name": frappe.db.get_value("Employee", emp, "employee_name"),
-						"attendance_date": processing_date,
-						"shift": shift_type_name,
-						"status": "Absent",
-						"in_time": last_out_time,
-						"company": frappe.defaults.get_user_default("Company")
-					})
+					attendance = frappe.get_doc(
+						{
+							"doctype": "Attendance",
+							"employee": emp,
+							"employee_name": frappe.db.get_value("Employee", emp, "employee_name"),
+							"attendance_date": processing_date,
+							"shift": shift_type_name,
+							"status": "Absent",
+							"in_time": last_out_time,
+							"company": frappe.defaults.get_user_default("Company"),
+						}
+					)
 					attendance.insert(ignore_permissions=True)
 					attendance.submit()
 					created_attendance += 1
@@ -926,7 +958,7 @@ def consolidate_attendance_for_date(processing_date):
 				existing_reg_name = frappe.db.get_value(
 					"Attendance Regularization",
 					{"employee": emp, "posting_date": processing_date, "docstatus": 0},
-					"name"
+					"name",
 				)
 
 				if existing_reg_name:
@@ -942,12 +974,15 @@ def consolidate_attendance_for_date(processing_date):
 					for c in [first_in, last_out]:
 						if c and c["name"] not in existing_checkin_names:
 							log_type = c.get("inferred_log_type", c.get("log_type", "IN"))
-							reg.append("attendance_regularization_item", {
-								"time": c["time"],
-								"log_type": log_type,
-								"device_id": c.get("device_id"),
-								"employee_checkin": c["name"]
-							})
+							reg.append(
+								"attendance_regularization_item",
+								{
+									"time": c["time"],
+									"log_type": log_type,
+									"device_id": c.get("device_id"),
+									"employee_checkin": c["name"],
+								},
+							)
 							items_added = True
 
 					if late_time_val:
@@ -961,8 +996,10 @@ def consolidate_attendance_for_date(processing_date):
 					if items_added:
 						reg.save(ignore_permissions=True)
 
-				elif not frappe.db.exists("Attendance Regularization",
-					{"employee": emp, "posting_date": processing_date, "docstatus": 1}):
+				elif not frappe.db.exists(
+					"Attendance Regularization",
+					{"employee": emp, "posting_date": processing_date, "docstatus": 1},
+				):
 					# Create new Attendance Regularization
 					reg_data = {
 						"doctype": "Attendance Regularization",
@@ -972,7 +1009,7 @@ def consolidate_attendance_for_date(processing_date):
 						"shift": shift_type_name,
 						"start_time": shift_type.start_time,
 						"end_time": shift_type.end_time,
-						"status": "Pending"
+						"status": "Pending",
 					}
 
 					reg = frappe.get_doc(reg_data)
@@ -981,12 +1018,15 @@ def consolidate_attendance_for_date(processing_date):
 					for c in [first_in, last_out]:
 						if c:
 							log_type = c.get("inferred_log_type", c.get("log_type", "IN"))
-							reg.append("attendance_regularization_item", {
-								"time": c["time"],
-								"log_type": log_type,
-								"device_id": c.get("device_id"),
-								"employee_checkin": c["name"]
-							})
+							reg.append(
+								"attendance_regularization_item",
+								{
+									"time": c["time"],
+									"log_type": log_type,
+									"device_id": c.get("device_id"),
+									"employee_checkin": c["name"],
+								},
+							)
 					reg.insert(ignore_permissions=True)
 					created_regularizations += 1
 			elif not needs_regularization:
@@ -994,23 +1034,23 @@ def consolidate_attendance_for_date(processing_date):
 				incorrect_reg = frappe.db.get_value(
 					"Attendance Regularization",
 					{"employee": emp, "posting_date": processing_date, "docstatus": 0},
-					"name"
+					"name",
 				)
 				if incorrect_reg:
 					frappe.delete_doc("Attendance Regularization", incorrect_reg, force=True)
 		except Exception as e:
 			frappe.log_error(message=str(e), title="Daily Attendance - Creation Error")
 			continue
-	
+
 	frappe.logger().info(
 		f"Daily Attendance Summary {processing_date}: Present={created_attendance}, Regularizations={created_regularizations}, Absent={absents_marked}, OnLeave/HalfDay={leaves_marked}"
 	)
-	
+
 	return {
 		"present": created_attendance,
 		"regularizations": created_regularizations,
 		"absent": absents_marked,
-		"leave": leaves_marked
+		"leave": leaves_marked,
 	}
 
 
@@ -1027,8 +1067,9 @@ def consolidate_pending_attendance(from_date=None, to_date=None):
 	Returns:
 		dict with processing stats
 	"""
-	from frappe.utils import getdate
 	from datetime import timedelta
+
+	from frappe.utils import getdate
 
 	if not from_date:
 		from_date = getdate() - timedelta(days=90)
@@ -1041,7 +1082,8 @@ def consolidate_pending_attendance(from_date=None, to_date=None):
 		to_date = getdate(to_date)
 
 	# Find all dates that have checkins but no attendance
-	pending_dates = frappe.db.sql("""
+	pending_dates = frappe.db.sql(
+		"""
 		SELECT DISTINCT DATE(ec.time) as pending_date
 		FROM `tabEmployee Checkin` ec
 		WHERE DATE(ec.time) BETWEEN %s AND %s
@@ -1052,13 +1094,16 @@ def consolidate_pending_attendance(from_date=None, to_date=None):
 			AND a.docstatus < 2
 		)
 		ORDER BY DATE(ec.time)
-	""", (from_date, to_date), as_dict=True)
+	""",
+		(from_date, to_date),
+		as_dict=True,
+	)
 
 	if not pending_dates:
 		return {
 			"success": True,
 			"message": "No pending dates found - all checkins have attendance records.",
-			"dates_processed": 0
+			"dates_processed": 0,
 		}
 
 	total_stats = {
@@ -1067,7 +1112,7 @@ def consolidate_pending_attendance(from_date=None, to_date=None):
 		"total_regularizations": 0,
 		"total_absent": 0,
 		"total_leave": 0,
-		"errors": 0
+		"errors": 0,
 	}
 
 	for row in pending_dates:
@@ -1084,10 +1129,7 @@ def consolidate_pending_attendance(from_date=None, to_date=None):
 				frappe.db.commit()
 		except Exception as e:
 			total_stats["errors"] += 1
-			frappe.log_error(
-				message=str(e),
-				title=f"Consolidate Pending Error - {row.pending_date}"
-			)
+			frappe.log_error(message=str(e), title=f"Consolidate Pending Error - {row.pending_date}")
 
 	frappe.db.commit()
 
@@ -1116,7 +1158,8 @@ def scheduled_consolidate_pending():
 	lookback_start = today - timedelta(days=7)
 
 	# Find dates with checkins but no attendance
-	pending_dates = frappe.db.sql("""
+	pending_dates = frappe.db.sql(
+		"""
 		SELECT DISTINCT DATE(ec.time) as pending_date
 		FROM `tabEmployee Checkin` ec
 		WHERE DATE(ec.time) BETWEEN %s AND %s
@@ -1127,11 +1170,15 @@ def scheduled_consolidate_pending():
 			AND a.docstatus < 2
 		)
 		ORDER BY DATE(ec.time)
-	""", (lookback_start, today), as_dict=True)
+	""",
+		(lookback_start, today),
+		as_dict=True,
+	)
 
 	# Also find dates with single-checkin employees whose attendance may be wrong
 	# (e.g., marked Present but only 1 checkin = should be Absent)
-	stale_dates = frappe.db.sql("""
+	stale_dates = frappe.db.sql(
+		"""
 		SELECT DISTINCT a.attendance_date as pending_date
 		FROM `tabAttendance` a
 		WHERE a.attendance_date BETWEEN %s AND %s
@@ -1141,12 +1188,15 @@ def scheduled_consolidate_pending():
 		AND (a.out_time IS NULL OR a.out_time = '')
 		AND a.leave_type IS NULL
 		AND (a.attendance_request IS NULL OR a.attendance_request = '')
-	""", (lookback_start, today), as_dict=True)
+	""",
+		(lookback_start, today),
+		as_dict=True,
+	)
 
 	all_dates = set()
-	for row in (pending_dates or []):
+	for row in pending_dates or []:
 		all_dates.add(row.pending_date)
-	for row in (stale_dates or []):
+	for row in stale_dates or []:
 		all_dates.add(row.pending_date)
 
 	if not all_dates:
@@ -1161,7 +1211,4 @@ def scheduled_consolidate_pending():
 			consolidate_attendance_for_date(dt)
 			frappe.db.commit()
 		except Exception as e:
-			frappe.log_error(
-				message=str(e),
-				title=f"Scheduled Consolidate Pending Error - {dt}"
-			)
+			frappe.log_error(message=str(e), title=f"Scheduled Consolidate Pending Error - {dt}")

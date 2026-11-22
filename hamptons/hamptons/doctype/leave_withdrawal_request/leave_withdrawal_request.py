@@ -4,7 +4,7 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import add_days, nowdate, now_datetime, getdate
+from frappe.utils import add_days, getdate, now_datetime, nowdate
 
 
 class LeaveWithdrawalRequest(Document):
@@ -49,8 +49,8 @@ class LeaveWithdrawalRequest(Document):
 				"leave_application": self.leave_application,
 				"status": "Pending",
 				"name": ("!=", self.name),
-				"docstatus": 0
-			}
+				"docstatus": 0,
+			},
 		)
 		if existing:
 			frappe.throw(_("A pending withdrawal request already exists for this leave application"))
@@ -70,16 +70,20 @@ class LeaveWithdrawalRequest(Document):
 		if self.status == "Approved":
 			self.cancel_leave_application()
 			self.rebuild_attendance_for_past_days()
-			frappe.db.set_value("Leave Withdrawal Request", self.name, {
-				"processed_by": frappe.session.user,
-				"processed_on": now_datetime()
-			}, update_modified=False)
+			frappe.db.set_value(
+				"Leave Withdrawal Request",
+				self.name,
+				{"processed_by": frappe.session.user, "processed_on": now_datetime()},
+				update_modified=False,
+			)
 			self.notify_employee_approved()
 		elif self.status == "Rejected":
-			frappe.db.set_value("Leave Withdrawal Request", self.name, {
-				"processed_by": frappe.session.user,
-				"processed_on": now_datetime()
-			}, update_modified=False)
+			frappe.db.set_value(
+				"Leave Withdrawal Request",
+				self.name,
+				{"processed_by": frappe.session.user, "processed_on": now_datetime()},
+				update_modified=False,
+			)
 			self.notify_employee_rejected()
 
 	def cancel_leave_application(self):
@@ -91,12 +95,7 @@ class LeaveWithdrawalRequest(Document):
 
 		# First, cancel all linked Attendance records
 		attendance_records = frappe.get_all(
-			"Attendance",
-			filters={
-				"leave_application": self.leave_application,
-				"docstatus": 1
-			},
-			pluck="name"
+			"Attendance", filters={"leave_application": self.leave_application, "docstatus": 1}, pluck="name"
 		)
 
 		for att_name in attendance_records:
@@ -109,16 +108,19 @@ class LeaveWithdrawalRequest(Document):
 				frappe.db.commit()
 			except Exception as e:
 				# Force cancel via SQL if normal cancel fails
-				frappe.log_error(f"Normal cancel failed for attendance {att_name}: {str(e)}, trying SQL")
+				frappe.log_error(f"Normal cancel failed for attendance {att_name}: {e!s}, trying SQL")
 				try:
-					frappe.db.sql("""
+					frappe.db.sql(
+						"""
 						UPDATE `tabAttendance`
 						SET docstatus = 2
 						WHERE name = %s
-					""", att_name)
+					""",
+						att_name,
+					)
 					frappe.db.commit()
 				except Exception as sql_e:
-					frappe.log_error(f"SQL cancel also failed for attendance {att_name}: {str(sql_e)}")
+					frappe.log_error(f"SQL cancel also failed for attendance {att_name}: {sql_e!s}")
 
 		# Also check for Leave Ledger Entry linked to this leave application
 		try:
@@ -127,22 +129,25 @@ class LeaveWithdrawalRequest(Document):
 				filters={
 					"transaction_type": "Leave Application",
 					"transaction_name": self.leave_application,
-					"docstatus": 1
+					"docstatus": 1,
 				},
-				pluck="name"
+				pluck="name",
 			)
 			for lle_name in leave_ledger_entries:
 				try:
-					frappe.db.sql("""
+					frappe.db.sql(
+						"""
 						UPDATE `tabLeave Ledger Entry`
 						SET docstatus = 2
 						WHERE name = %s
-					""", lle_name)
-				except:
+					""",
+						lle_name,
+					)
+				except Exception:
 					pass
 			frappe.db.commit()
 		except Exception as e:
-			frappe.log_error(f"Error handling leave ledger entries: {str(e)}")
+			frappe.log_error(f"Error handling leave ledger entries: {e!s}")
 
 		# Now cancel the leave application
 		try:
@@ -155,25 +160,32 @@ class LeaveWithdrawalRequest(Document):
 			frappe.db.commit()
 		except Exception as e:
 			# Force cancel via SQL if normal cancel fails
-			frappe.log_error(f"Normal cancel failed for leave application {self.leave_application}: {str(e)}, trying SQL")
+			frappe.log_error(
+				f"Normal cancel failed for leave application {self.leave_application}: {e!s}, trying SQL"
+			)
 			try:
-				frappe.db.sql("""
+				frappe.db.sql(
+					"""
 					UPDATE `tabLeave Application`
 					SET docstatus = 2, status = 'Cancelled'
 					WHERE name = %s
-				""", self.leave_application)
+				""",
+					self.leave_application,
+				)
 				frappe.db.commit()
 			except Exception as sql_e:
-				frappe.log_error(f"SQL cancel also failed for leave application: {str(sql_e)}")
+				frappe.log_error(f"SQL cancel also failed for leave application: {sql_e!s}")
 				frappe.throw(_("Failed to cancel Leave Application. Please contact administrator."))
 
 		# Always update workflow_state and status to "Cancelled" so the indicator shows correctly
 		# (the workflow overrides the indicator based on workflow_state, not docstatus)
 		try:
-			frappe.db.set_value("Leave Application", self.leave_application, {
-				"workflow_state": "Cancelled",
-				"status": "Cancelled"
-			}, update_modified=False)
+			frappe.db.set_value(
+				"Leave Application",
+				self.leave_application,
+				{"workflow_state": "Cancelled", "status": "Cancelled"},
+				update_modified=False,
+			)
 			frappe.db.commit()
 		except Exception:
 			pass
@@ -234,7 +246,8 @@ class LeaveWithdrawalRequest(Document):
 				recipients.append(hod_email)
 
 		if not recipients and employee.department:
-			dept_hods = frappe.db.sql("""
+			dept_hods = frappe.db.sql(
+				"""
 				SELECT DISTINCT u.email
 				FROM `tabUser` u
 				INNER JOIN `tabHas Role` hr ON hr.parent = u.name
@@ -243,7 +256,10 @@ class LeaveWithdrawalRequest(Document):
 				AND e.department = %s
 				AND u.enabled = 1
 				AND u.email IS NOT NULL
-			""", (employee.department,), as_dict=True)
+			""",
+				(employee.department,),
+				as_dict=True,
+			)
 			recipients.extend([d.email for d in dept_hods if d.email])
 
 		return list(set(recipients))
@@ -251,6 +267,7 @@ class LeaveWithdrawalRequest(Document):
 	def notify_hod(self):
 		"""Send professional email to HOD about new withdrawal request."""
 		from hamptons.utils.email_utils import is_outgoing_email_enabled
+
 		if not is_outgoing_email_enabled():
 			return
 
@@ -276,7 +293,7 @@ class LeaveWithdrawalRequest(Document):
 <p style="margin:20px 0 16px;font-size:14px;color:#4b5563;line-height:1.7;">
   Please log in to Hamptons HRMS to approve or reject this request.
 </p>
-{_lwr_cta_button(lwr_url, "Review Withdrawal Request", "#1d4ed8")}"""
+{_lwr_cta_button(lwr_url, "Review Withdrawal Request", "#1d4ed8")}""",
 		)
 
 		for recipient in recipients:
@@ -287,7 +304,7 @@ class LeaveWithdrawalRequest(Document):
 					message=message,
 					reference_doctype=self.doctype,
 					reference_name=self.name,
-					now=True
+					now=True,
 				)
 			except Exception:
 				pass
@@ -295,11 +312,14 @@ class LeaveWithdrawalRequest(Document):
 	def notify_employee_approved(self):
 		"""Notify employee with professional email that withdrawal is approved."""
 		from hamptons.utils.email_utils import is_outgoing_email_enabled
+
 		if not is_outgoing_email_enabled():
 			return
 
 		employee_doc = frappe.get_doc("Employee", self.employee)
-		employee_email = employee_doc.prefered_email or employee_doc.company_email or employee_doc.personal_email
+		employee_email = (
+			employee_doc.prefered_email or employee_doc.company_email or employee_doc.personal_email
+		)
 		if not employee_email and employee_doc.user_id:
 			employee_email = frappe.db.get_value("User", employee_doc.user_id, "email")
 		if not employee_email:
@@ -330,7 +350,7 @@ class LeaveWithdrawalRequest(Document):
   Your leave application has been cancelled and your leave balance has been restored.
   If you have any questions, please contact your HR department.
 </p>
-{_lwr_cta_button(lwr_url, "View Withdrawal Request", "#16a34a")}"""
+{_lwr_cta_button(lwr_url, "View Withdrawal Request", "#16a34a")}""",
 		)
 
 		try:
@@ -340,7 +360,7 @@ class LeaveWithdrawalRequest(Document):
 				message=message,
 				reference_doctype=self.doctype,
 				reference_name=self.name,
-				now=True
+				now=True,
 			)
 		except Exception:
 			pass
@@ -348,11 +368,14 @@ class LeaveWithdrawalRequest(Document):
 	def notify_employee_rejected(self):
 		"""Notify employee with professional email that withdrawal is rejected."""
 		from hamptons.utils.email_utils import is_outgoing_email_enabled
+
 		if not is_outgoing_email_enabled():
 			return
 
 		employee_doc = frappe.get_doc("Employee", self.employee)
-		employee_email = employee_doc.prefered_email or employee_doc.company_email or employee_doc.personal_email
+		employee_email = (
+			employee_doc.prefered_email or employee_doc.company_email or employee_doc.personal_email
+		)
 		if not employee_email and employee_doc.user_id:
 			employee_email = frappe.db.get_value("User", employee_doc.user_id, "email")
 		if not employee_email:
@@ -399,7 +422,7 @@ class LeaveWithdrawalRequest(Document):
   Your original leave application remains active. For further information,
   please contact your line manager or HR department.
 </p>
-{_lwr_cta_button(lwr_url, "View Withdrawal Request", "#dc2626")}"""
+{_lwr_cta_button(lwr_url, "View Withdrawal Request", "#dc2626")}""",
 		)
 
 		try:
@@ -409,7 +432,7 @@ class LeaveWithdrawalRequest(Document):
 				message=message,
 				reference_doctype=self.doctype,
 				reference_name=self.name,
-				now=True
+				now=True,
 			)
 		except Exception:
 			pass
@@ -564,7 +587,9 @@ def create_withdrawal_request(leave_application, reason):
 
 	return {
 		"name": withdrawal.name,
-		"message": _("Leave withdrawn successfully. The leave application has been cancelled and HR has been notified.")
+		"message": _(
+			"Leave withdrawn successfully. The leave application has been cancelled and HR has been notified."
+		),
 	}
 
 
@@ -577,16 +602,13 @@ def get_withdrawable_leaves():
 
 	leaves = frappe.get_all(
 		"Leave Application",
-		filters={
-			"employee": employee,
-			"docstatus": 1,
-			"to_date": (">=", add_days(nowdate(), -60))
-		},
-		fields=["name", "employee", "leave_type", "from_date", "to_date", "total_leave_days", "status"]
+		filters={"employee": employee, "docstatus": 1, "to_date": (">=", add_days(nowdate(), -60))},
+		fields=["name", "employee", "leave_type", "from_date", "to_date", "total_leave_days", "status"],
 	)
 	# Ended leaves are only withdrawable when check-ins cover every working day
 	leaves = [
-		leave for leave in leaves
+		leave
+		for leave in leaves
 		if getdate(leave.to_date) >= getdate(nowdate()) or not get_leave_days_without_checkins(leave)
 	]
 
@@ -594,12 +616,7 @@ def get_withdrawable_leaves():
 	result = []
 	for leave in leaves:
 		pending_withdrawal = frappe.db.exists(
-			"Leave Withdrawal Request",
-			{
-				"leave_application": leave.name,
-				"status": "Pending",
-				"docstatus": 0
-			}
+			"Leave Withdrawal Request", {"leave_application": leave.name, "status": "Pending", "docstatus": 0}
 		)
 		if not pending_withdrawal:
 			result.append(leave)

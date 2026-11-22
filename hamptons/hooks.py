@@ -44,14 +44,12 @@ app_license = "mit"
 
 # include js in doctype views
 doctype_js = {
-	"Employee" : "public/js/employee.js",
-	"Employee Checkin" : "public/js/employee_checkin.js",
-	"Leave Application" : "public/js/leave_application.js",
-	"Expense Claim" : "public/js/expense_claim.js"
+	"Employee": "public/js/employee.js",
+	"Employee Checkin": "public/js/employee_checkin.js",
+	"Leave Application": "public/js/leave_application.js",
+	"Expense Claim": "public/js/expense_claim.js",
 }
-doctype_list_js = {
-	"Attendance Regularization" : "public/js/attendance_regularization_list.js"
-}
+doctype_list_js = {"Attendance Regularization": "public/js/attendance_regularization_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
 
@@ -139,7 +137,7 @@ doctype_list_js = {
 override_doctype_class = {
 	"Department": "hamptons.overrides.department.CustomDepartment",
 	"Attendance Request": "hamptons.overrides.attendance_request.HamptonsAttendanceRequest",
-	"Leave Application": "hamptons.overrides.leave_application.HamptonsLeaveApplication"
+	"Leave Application": "hamptons.overrides.leave_application.HamptonsLeaveApplication",
 }
 
 # App startup hooks
@@ -152,24 +150,20 @@ app_startup = "hamptons.overrides.leave_control_panel.override_leave_control_pan
 # Hook on document methods and events
 
 doc_events = {
-	"Employee Checkin": {
-		"after_insert": "hamptons.overrides.employee_checkin.on_employee_checkin_submit"
-	},
+	"Employee Checkin": {"after_insert": "hamptons.overrides.employee_checkin.on_employee_checkin_submit"},
 	"Leave Allocation": {
 		"validate": "hamptons.overrides.leave_allocation.validate_leave_allocation",
 		"before_insert": "hamptons.overrides.leave_allocation.validate_leave_allocation",
 		"before_submit": "hamptons.overrides.leave_allocation.validate_leave_allocation",
-		"on_submit": "hamptons.overrides.leave_allocation.on_submit_leave_allocation"
+		"on_submit": "hamptons.overrides.leave_allocation.on_submit_leave_allocation",
 	},
-	"File": {
-		"after_insert": "hamptons.overrides.leave_application.on_file_attached"
-	},
+	"File": {"after_insert": "hamptons.overrides.leave_application.on_file_attached"},
 	"Leave Application": {
 		"validate": "hamptons.overrides.leave_application.validate_leave_application",
 		"before_submit": "hamptons.overrides.leave_application.before_submit_leave_application",
 		"on_update": "hamptons.overrides.leave_application.on_update_leave_application",
 		"on_submit": "hamptons.overrides.leave_application.on_submit_leave_application",
-		"on_cancel": "hamptons.overrides.leave_application.on_cancel_leave_application"
+		"on_cancel": "hamptons.overrides.leave_application.on_cancel_leave_application",
 	},
 	"Shift Assignment": {
 		"before_insert": "hamptons.overrides.shift_assignment.before_insert_shift_assignment"
@@ -177,12 +171,8 @@ doc_events = {
 	"Attendance Regularization": {
 		"after_insert": "hamptons.overrides.attendance_regularization.after_insert_attendance_regularization"
 	},
-	"Attendance Request": {
-		"on_update": "hamptons.overrides.attendance_request.on_update_attendance_request"
-	},
-	"Expense Claim": {
-		"on_update": "hamptons.overrides.expense_claim.on_update_expense_claim"
-	}
+	"Attendance Request": {"on_update": "hamptons.overrides.attendance_request.on_update_attendance_request"},
+	"Expense Claim": {"on_update": "hamptons.overrides.expense_claim.on_update_expense_claim"},
 }
 
 # Scheduled Tasks
@@ -211,15 +201,13 @@ scheduler_events = {
 		"0 8 * * *": [
 			# Send family visa expiry alerts daily at 8:00 AM
 			"hamptons.utils.visa_notifications.send_visa_expiry_alerts"
-		]
+		],
 	},
 	"daily": [
 		# Override HRMS work anniversary reminders to ensure Left employees are excluded
 		"hamptons.overrides.employee_reminders.send_work_anniversary_reminders"
 	],
-	"hourly": [
-		"hamptons.hamptons.doctype.crosschex_settings.crosschex_settings.check_and_refresh_token"
-	]
+	"hourly": ["hamptons.hamptons.doctype.crosschex_settings.crosschex_settings.check_and_refresh_token"],
 }
 # scheduler_events = {
 # 	"all": [
@@ -280,71 +268,56 @@ override_whitelisted_methods = {
 # User Data Protection
 # --------------------
 fixtures = [
-    {
-        "doctype": "Custom Field",
-        "filters": [
-            [
-                "name",
-                "in",
-                [
-                    # Employee Custom Fields
-                    "Employee-custom_omani_id",
-                    "Employee-custom_report_to_name",
-                    # Employee Checkin Custom Fields
-                    "Employee Checkin-custom_crosschex_uuid",
-                    "Employee Checkin-custom_attendance_regularization",
-                    # Attendance Custom Fields
-                    "Attendance-custom_attendance_regularization",
-                    # Leave Application Custom Fields
-                    "Leave Application-custom_medical_certificate",
-                    # Leave Policy Custom Fields - Employee
-                    "Employee-custom_leave_details_section",
-                    "Employee-custom_nationality",
-                    "Employee-custom_religion",
-                    "Employee-custom_hajj_leave_taken",
-                    "Employee-custom_hajj_leave_date",
-                    "Employee-custom_leave_column_break",
-                    "Employee-custom_leave_carryforward_enabled",
-                    "Employee-custom_max_carryforward_days",
-                    # Leave Policy Custom Fields - Leave Type
-                    "Leave Type-custom_oman_leave_section",
-                    "Leave Type-custom_gender_specific",
-                    "Leave Type-custom_nationality_specific",
-                    "Leave Type-custom_religion_specific",
-                    "Leave Type-custom_once_in_service",
-                    # Family Info Custom Fields
-                    "Employee-custom_family_info_section",
-                    "Employee-custom_family_info"
-                ]
-            ]
-        ]
-    },
-    {
-        "doctype": "Workspace",
-        "filters": [
-            [
-                "name",
-                "in",
-                [
-                    "Employee Check-in Dashboard"
-                ]
-            ]
-        ]
-    },
-    {
-        "doctype": "Dashboard Chart",
-        "filters": [
-            [
-                "name",
-                "in",
-                [
-                    "Daily Check-ins Overview",
-                    "Department-wise Attendance",
-                    "Check-in Time Distribution"
-                ]
-            ]
-        ]
-    },
+	{
+		"doctype": "Custom Field",
+		"filters": [
+			[
+				"name",
+				"in",
+				[
+					# Employee Custom Fields
+					"Employee-custom_omani_id",
+					"Employee-custom_report_to_name",
+					# Employee Checkin Custom Fields
+					"Employee Checkin-custom_crosschex_uuid",
+					"Employee Checkin-custom_attendance_regularization",
+					# Attendance Custom Fields
+					"Attendance-custom_attendance_regularization",
+					# Leave Application Custom Fields
+					"Leave Application-custom_medical_certificate",
+					# Leave Policy Custom Fields - Employee
+					"Employee-custom_leave_details_section",
+					"Employee-custom_nationality",
+					"Employee-custom_religion",
+					"Employee-custom_hajj_leave_taken",
+					"Employee-custom_hajj_leave_date",
+					"Employee-custom_leave_column_break",
+					"Employee-custom_leave_carryforward_enabled",
+					"Employee-custom_max_carryforward_days",
+					# Leave Policy Custom Fields - Leave Type
+					"Leave Type-custom_oman_leave_section",
+					"Leave Type-custom_gender_specific",
+					"Leave Type-custom_nationality_specific",
+					"Leave Type-custom_religion_specific",
+					"Leave Type-custom_once_in_service",
+					# Family Info Custom Fields
+					"Employee-custom_family_info_section",
+					"Employee-custom_family_info",
+				],
+			]
+		],
+	},
+	{"doctype": "Workspace", "filters": [["name", "in", ["Employee Check-in Dashboard"]]]},
+	{
+		"doctype": "Dashboard Chart",
+		"filters": [
+			[
+				"name",
+				"in",
+				["Daily Check-ins Overview", "Department-wise Attendance", "Check-in Time Distribution"],
+			]
+		],
+	},
 ]
 # user_data_fields = [
 # 	{
@@ -380,4 +353,3 @@ fixtures = [
 # default_log_clearing_doctypes = {
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
-

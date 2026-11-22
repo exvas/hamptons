@@ -2,17 +2,17 @@
 # License: MIT
 
 import frappe
-from frappe.utils.nestedset import get_root_of
 from erpnext.setup.doctype.department.department import Department
+from frappe.utils.nestedset import get_root_of
 
 
 class CustomDepartment(Department):
 	"""
 	Custom Department class that overrides the default naming behavior.
-	Instead of appending company abbreviation (e.g., "sss - H"), 
+	Instead of appending company abbreviation (e.g., "sss - H"),
 	it keeps the department name as entered (e.g., "sss").
 	"""
-	
+
 	def autoname(self):
 		"""
 		Override the default autoname method to prevent company abbreviation

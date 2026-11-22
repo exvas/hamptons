@@ -11,7 +11,6 @@ Attendance Request Override
 import frappe
 from frappe import _
 from frappe.utils import add_days, date_diff, get_url_to_form, getdate
-
 from hrms.hr.doctype.attendance_request.attendance_request import AttendanceRequest
 
 
@@ -103,10 +102,12 @@ def on_update_attendance_request(doc, method=None):
 		"employee_name": employee_name,
 		"employee_id": doc.employee,
 		"from_date": frappe.format(doc.from_date, {"fieldtype": "Date"}),
-		"to_date": frappe.format(doc.to_date, {"fieldtype": "Date"}) if doc.to_date else frappe.format(doc.from_date, {"fieldtype": "Date"}),
+		"to_date": frappe.format(doc.to_date, {"fieldtype": "Date"})
+		if doc.to_date
+		else frappe.format(doc.from_date, {"fieldtype": "Date"}),
 		"reason": doc.reason or "Not specified",
 		"request_url": request_url,
-		"workflow_state": workflow_state
+		"workflow_state": workflow_state,
 	}
 
 	if workflow_state == "Pending":
@@ -134,13 +135,8 @@ def update_linked_attendance_regularization(doc, status):
 
 	linked_regularization = frappe.db.get_value(
 		"Attendance Regularization",
-		{
-			"employee": doc.employee,
-			"posting_date": attendance_date,
-			"docstatus": 0,
-			"status": "Pending"
-		},
-		"name"
+		{"employee": doc.employee, "posting_date": attendance_date, "docstatus": 0, "status": "Pending"},
+		"name",
 	)
 
 	if not linked_regularization:
@@ -153,15 +149,13 @@ def update_linked_attendance_regularization(doc, status):
 
 		frappe.msgprint(
 			_("Attendance Regularization {0} has been {1}").format(
-				frappe.utils.get_link_to_form("Attendance Regularization", linked_regularization),
-				status
+				frappe.utils.get_link_to_form("Attendance Regularization", linked_regularization), status
 			),
-			indicator="green" if status == "Approved" else "orange"
+			indicator="green" if status == "Approved" else "orange",
 		)
 	except Exception as e:
 		frappe.log_error(
-			message=str(e),
-			title=f"Failed to update Attendance Regularization - {linked_regularization}"
+			message=str(e), title=f"Failed to update Attendance Regularization - {linked_regularization}"
 		)
 
 
@@ -187,7 +181,8 @@ def _get_hod_recipients(doc):
 			recipients.append(hod_email)
 
 	if not recipients and employee.department:
-		dept_hods = frappe.db.sql("""
+		dept_hods = frappe.db.sql(
+			"""
 			SELECT DISTINCT u.email
 			FROM `tabUser` u
 			INNER JOIN `tabHas Role` hr ON hr.parent = u.name
@@ -196,7 +191,10 @@ def _get_hod_recipients(doc):
 			AND e.department = %s
 			AND u.enabled = 1
 			AND u.email IS NOT NULL
-		""", (employee.department,), as_dict=True)
+		""",
+			(employee.department,),
+			as_dict=True,
+		)
 		recipients.extend([d.email for d in dept_hods if d.email])
 
 	return list(set(recipients))
@@ -221,15 +219,15 @@ def _get_notification_content(notification_type, context):
 	templates = {
 		"pending_approval": (
 			_("Attendance Request Pending Your Approval - {0}").format(emp_name),
-			f"<h3>Attendance Request Pending Approval</h3><p>Dear HOD,</p><p><strong>{emp_name}</strong> ({emp_id}) has submitted an attendance request that requires your approval.</p>{table}{btn_green}"
+			f"<h3>Attendance Request Pending Approval</h3><p>Dear HOD,</p><p><strong>{emp_name}</strong> ({emp_id}) has submitted an attendance request that requires your approval.</p>{table}{btn_green}",
 		),
 		"approved": (
 			_("Your Attendance Request - Approved"),
-			f"<h3>Attendance Request Approved</h3><p>Dear {emp_name},</p><p>Your attendance request has been <strong style='color: green;'>approved</strong>. Your attendance has been regularized.</p>{table}{btn_green}"
+			f"<h3>Attendance Request Approved</h3><p>Dear {emp_name},</p><p>Your attendance request has been <strong style='color: green;'>approved</strong>. Your attendance has been regularized.</p>{table}{btn_green}",
 		),
 		"rejected": (
 			_("Your Attendance Request - Rejected"),
-			f"<h3>Attendance Request Rejected</h3><p>Dear {emp_name},</p><p>Your attendance request has been <strong style='color: red;'>rejected</strong>.</p>{table}<p>Please contact your HOD for more information.</p>{btn_red}"
+			f"<h3>Attendance Request Rejected</h3><p>Dear {emp_name},</p><p>Your attendance request has been <strong style='color: red;'>rejected</strong>.</p>{table}<p>Please contact your HOD for more information.</p>{btn_red}",
 		),
 	}
 
@@ -238,7 +236,7 @@ def _get_notification_content(notification_type, context):
 
 	return (
 		_("Attendance Request Update - {0}").format(emp_name),
-		f"<h3>Attendance Request Update</h3><p>Attendance request for <strong>{emp_name}</strong> has been updated. Current Status: {context['workflow_state']}</p><p><a href='{request_url}'>View Attendance Request</a></p>"
+		f"<h3>Attendance Request Update</h3><p>Attendance request for <strong>{emp_name}</strong> has been updated. Current Status: {context['workflow_state']}</p><p><a href='{request_url}'>View Attendance Request</a></p>",
 	)
 
 
@@ -247,12 +245,13 @@ def _log_workflow_action(doc, from_state, to_state):
 	action = "Approve" if "Approved" in to_state else "Reject" if "Rejected" in to_state else "Submit"
 	try:
 		from hamptons.hamptons.doctype.workflow_action_log.workflow_action_log import log_workflow_action
+
 		log_workflow_action(
 			reference_doctype="Attendance Request",
 			reference_name=doc.name,
 			action=action,
 			from_state=from_state or "",
-			to_state=to_state
+			to_state=to_state,
 		)
 	except Exception as e:
-		frappe.logger().error(f"Failed to log workflow action for {doc.name}: {str(e)}")
+		frappe.logger().error(f"Failed to log workflow action for {doc.name}: {e!s}")

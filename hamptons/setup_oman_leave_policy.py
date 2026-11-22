@@ -26,7 +26,7 @@ LEAVE_TYPES_MASTER = [
 		"encashment_threshold_days": 0,
 		"earning_component": "Leave Encashment",
 		"description": "Annual leave as per Oman Labor Law - 30 days per year",
-		"applicable_after": 365  # After 1 year of service
+		"applicable_after": 365,  # After 1 year of service
 	},
 	{
 		"leave_type_name": "Sick Leave",
@@ -39,7 +39,7 @@ LEAVE_TYPES_MASTER = [
 		"is_lwp": 0,
 		"allow_encashment": 0,
 		"description": "Sick leave with medical certificate - 21 days per year (15 days full pay, 6 days half pay)",
-		"applicable_after": 90  # After probation
+		"applicable_after": 90,  # After probation
 	},
 	{
 		"leave_type_name": "Paternity Leave",
@@ -52,7 +52,7 @@ LEAVE_TYPES_MASTER = [
 		"is_lwp": 0,
 		"allow_encashment": 0,
 		"description": "Paternity leave for male employees - 7 days",
-		"applicable_after": 0
+		"applicable_after": 0,
 	},
 	{
 		"leave_type_name": "Marriage Leave",
@@ -65,7 +65,7 @@ LEAVE_TYPES_MASTER = [
 		"is_lwp": 0,
 		"allow_encashment": 0,
 		"description": "Marriage leave - 3 days",
-		"applicable_after": 0
+		"applicable_after": 0,
 	},
 	{
 		"leave_type_name": "Bereavement Leave",
@@ -78,7 +78,7 @@ LEAVE_TYPES_MASTER = [
 		"is_lwp": 0,
 		"allow_encashment": 0,
 		"description": "Bereavement leave for immediate family - 3 days",
-		"applicable_after": 0
+		"applicable_after": 0,
 	},
 	{
 		"leave_type_name": "Bereavement Leave - Extended Family",
@@ -91,7 +91,7 @@ LEAVE_TYPES_MASTER = [
 		"is_lwp": 0,
 		"allow_encashment": 0,
 		"description": "Bereavement leave for extended family - 2 days",
-		"applicable_after": 0
+		"applicable_after": 0,
 	},
 	{
 		"leave_type_name": "Bereavement Leave - Child/Wife",
@@ -104,7 +104,7 @@ LEAVE_TYPES_MASTER = [
 		"is_lwp": 0,
 		"allow_encashment": 0,
 		"description": "Bereavement leave for child or wife - 10 days",
-		"applicable_after": 0
+		"applicable_after": 0,
 	},
 	{
 		"leave_type_name": "Hajj Leave",
@@ -117,7 +117,7 @@ LEAVE_TYPES_MASTER = [
 		"is_lwp": 0,
 		"allow_encashment": 0,
 		"description": "Hajj leave for Muslim employees - 15 days (once in service)",
-		"applicable_after": 365
+		"applicable_after": 365,
 	},
 	{
 		"leave_type_name": "Exam Leave",
@@ -130,7 +130,7 @@ LEAVE_TYPES_MASTER = [
 		"is_lwp": 0,
 		"allow_encashment": 0,
 		"description": "Exam leave for students - 15 days",
-		"applicable_after": 0
+		"applicable_after": 0,
 	},
 	{
 		"leave_type_name": "Bereavement Leave - Wife (Muslim Female)",
@@ -143,7 +143,7 @@ LEAVE_TYPES_MASTER = [
 		"is_lwp": 0,
 		"allow_encashment": 0,
 		"description": "Bereavement leave for Muslim female employees (Iddah period) - 130 days",
-		"applicable_after": 0
+		"applicable_after": 0,
 	},
 	{
 		"leave_type_name": "Bereavement Leave - Wife (Non-Muslim Female)",
@@ -156,7 +156,7 @@ LEAVE_TYPES_MASTER = [
 		"is_lwp": 0,
 		"allow_encashment": 0,
 		"description": "Bereavement leave for non-Muslim female employees - 14 days",
-		"applicable_after": 0
+		"applicable_after": 0,
 	},
 	{
 		"leave_type_name": "Compassionate Leave - Family Member",
@@ -169,7 +169,7 @@ LEAVE_TYPES_MASTER = [
 		"is_lwp": 0,
 		"allow_encashment": 0,
 		"description": "Compassionate leave for critical illness of family member - 15 days",
-		"applicable_after": 0
+		"applicable_after": 0,
 	},
 	{
 		"leave_type_name": "Maternity Leave",
@@ -182,8 +182,8 @@ LEAVE_TYPES_MASTER = [
 		"is_lwp": 0,
 		"allow_encashment": 0,
 		"description": "Maternity leave for female employees - 98 days (50 days full pay, 48 days unpaid)",
-		"applicable_after": 365  # After 1 year of service for full benefits
-	}
+		"applicable_after": 365,  # After 1 year of service for full benefits
+	},
 ]
 
 
@@ -217,10 +217,10 @@ def create_leave_type(leave_data):
 
 	except Exception as e:
 		frappe.log_error(
-			message=f"Error creating leave type {leave_type_name}: {str(e)}",
-			title="Leave Type Creation Error"
+			message=f"Error creating leave type {leave_type_name}: {e!s}",
+			title="Leave Type Creation Error",
 		)
-		print(f"  ✗ Error creating leave type '{leave_type_name}': {str(e)}")
+		print(f"  ✗ Error creating leave type '{leave_type_name}': {e!s}")
 		frappe.db.rollback()
 		return None
 
@@ -255,10 +255,9 @@ def create_leave_policy():
 
 			# Check if leave type exists before adding to policy
 			if frappe.db.exists("Leave Type", leave_type_name):
-				doc.append("leave_policy_details", {
-					"leave_type": leave_type_name,
-					"annual_allocation": max_leaves
-				})
+				doc.append(
+					"leave_policy_details", {"leave_type": leave_type_name, "annual_allocation": max_leaves}
+				)
 				print(f"    - Added {leave_type_name}: {max_leaves} days")
 			else:
 				print(f"    ✗ Warning: Leave Type '{leave_type_name}' not found, skipping...")
@@ -269,11 +268,8 @@ def create_leave_policy():
 		return doc
 
 	except Exception as e:
-		frappe.log_error(
-			message=f"Error creating leave policy: {str(e)}",
-			title="Leave Policy Creation Error"
-		)
-		print(f"  ✗ Error creating leave policy: {str(e)}")
+		frappe.log_error(message=f"Error creating leave policy: {e!s}", title="Leave Policy Creation Error")
+		print(f"  ✗ Error creating leave policy: {e!s}")
 		frappe.db.rollback()
 		return None
 
@@ -285,9 +281,9 @@ def setup_leave_types_and_policy():
 	Run using:
 	bench --site [site] execute hamptons.setup_oman_leave_policy.setup_leave_types_and_policy
 	"""
-	print("\n" + "="*70)
+	print("\n" + "=" * 70)
 	print("SETTING UP OMAN LABOR LAW LEAVE TYPES AND POLICY")
-	print("="*70 + "\n")
+	print("=" * 70 + "\n")
 
 	# Step 1: Create all leave types
 	print("Step 1: Creating Leave Types...")
@@ -323,25 +319,22 @@ def setup_leave_types_and_policy():
 		print("   - Employee nationality (for Hajj Leave)")
 		print("   - Employee gender (for Maternity/Paternity)")
 		print("   - Employment duration (for Annual Leave)")
-		print("\n" + "="*70 + "\n")
+		print("\n" + "=" * 70 + "\n")
 		return {
 			"status": "success",
 			"leave_types_created": created_count,
 			"leave_types_failed": failed_count,
-			"policy_name": policy.name
+			"policy_name": policy.name,
 		}
 	else:
 		print("\n✗ SETUP FAILED - Please check error logs")
-		print("="*70 + "\n")
-		return {
-			"status": "failed",
-			"leave_types_created": created_count,
-			"leave_types_failed": failed_count
-		}
+		print("=" * 70 + "\n")
+		return {"status": "failed", "leave_types_created": created_count, "leave_types_failed": failed_count}
 
 
-def assign_leave_policy_to_employee(employee_id, policy_name="Oman Labor Law Leave Policy",
-									effective_from=None, carry_forward=1):
+def assign_leave_policy_to_employee(
+	employee_id, policy_name="Oman Labor Law Leave Policy", effective_from=None, carry_forward=1
+):
 	"""
 	Assign leave policy to a specific employee
 
@@ -354,7 +347,7 @@ def assign_leave_policy_to_employee(employee_id, policy_name="Oman Labor Law Lea
 	Returns:
 		Leave Policy Assignment document
 	"""
-	from frappe.utils import today, getdate
+	from frappe.utils import getdate, today
 
 	if not effective_from:
 		effective_from = today()
@@ -371,11 +364,10 @@ def assign_leave_policy_to_employee(employee_id, policy_name="Oman Labor Law Lea
 			return None
 
 		# Check if assignment already exists
-		existing = frappe.db.exists("Leave Policy Assignment", {
-			"employee": employee_id,
-			"leave_policy": policy_name,
-			"effective_from": effective_from
-		})
+		existing = frappe.db.exists(
+			"Leave Policy Assignment",
+			{"employee": employee_id, "leave_policy": policy_name, "effective_from": effective_from},
+		)
 
 		if existing:
 			print(f"  Leave Policy Assignment already exists for {employee_id}, updating...")
@@ -397,10 +389,10 @@ def assign_leave_policy_to_employee(employee_id, policy_name="Oman Labor Law Lea
 
 	except Exception as e:
 		frappe.log_error(
-			message=f"Error assigning leave policy to {employee_id}: {str(e)}",
-			title="Leave Policy Assignment Error"
+			message=f"Error assigning leave policy to {employee_id}: {e!s}",
+			title="Leave Policy Assignment Error",
 		)
-		print(f"  ✗ Error: {str(e)}")
+		print(f"  ✗ Error: {e!s}")
 		frappe.db.rollback()
 		return None
 
@@ -418,18 +410,17 @@ def bulk_assign_leave_policy(filters=None, policy_name="Oman Labor Law Leave Pol
 	"""
 	from frappe.utils import today
 
-	print("\n" + "="*70)
+	print("\n" + "=" * 70)
 	print("BULK ASSIGNING LEAVE POLICY TO EMPLOYEES")
-	print("="*70 + "\n")
+	print("=" * 70 + "\n")
 
 	# Default filter: Active employees only
 	if not filters:
 		filters = {"status": "Active"}
 
 	# Get employees matching filters
-	employees = frappe.get_all("Employee",
-		filters=filters,
-		fields=["name", "employee_name", "department", "designation"]
+	employees = frappe.get_all(
+		"Employee", filters=filters, fields=["name", "employee_name", "department", "designation"]
 	)
 
 	if not employees:
@@ -444,9 +435,7 @@ def bulk_assign_leave_policy(filters=None, policy_name="Oman Labor Law Leave Pol
 
 	for emp in employees:
 		result = assign_leave_policy_to_employee(
-			employee_id=emp.name,
-			policy_name=policy_name,
-			effective_from=today()
+			employee_id=emp.name, policy_name=policy_name, effective_from=today()
 		)
 
 		if result:
@@ -455,14 +444,14 @@ def bulk_assign_leave_policy(filters=None, policy_name="Oman Labor Law Leave Pol
 			failed_count += 1
 
 	print("\n" + "-" * 70)
-	print(f"✅ BULK ASSIGNMENT COMPLETE")
+	print("✅ BULK ASSIGNMENT COMPLETE")
 	print(f"   Success: {success_count}")
 	print(f"   Failed: {failed_count}")
-	print("="*70 + "\n")
+	print("=" * 70 + "\n")
 
 	return {
 		"status": "success",
 		"total_employees": len(employees),
 		"success_count": success_count,
-		"failed_count": failed_count
+		"failed_count": failed_count,
 	}

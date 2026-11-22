@@ -1,8 +1,7 @@
 import frappe
+from erpnext.setup.doctype.employee.employee import get_all_employee_emails, get_employee_email
 from frappe import _
 from frappe.utils import getdate, today
-
-from erpnext.setup.doctype.employee.employee import get_all_employee_emails, get_employee_email
 
 
 def send_work_anniversary_reminders():
@@ -17,8 +16,8 @@ def send_work_anniversary_reminders():
 	if not to_send:
 		return
 
-	sender = frappe.db.get_single_value("HR Settings", "sender_email")
-	employees_joined_today = get_active_employees_with_anniversary_today()
+	sender = frappe.db.get_single_value("HR Settings", "sender_email")  # noqa: F841
+	employees_joined_today = get_active_employees_with_anniversary_today()  # noqa: F841
 
 	# Work anniversary email reminders are disabled
 	return

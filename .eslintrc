@@ -25,6 +25,7 @@
 	},
 	"root": true,
 	"globals": {
+		"hamptons": true,
 		"frappe": true,
 		"Vue": true,
 		"SetVueGlobals": true,
