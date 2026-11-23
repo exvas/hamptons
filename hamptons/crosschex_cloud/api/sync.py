@@ -66,7 +66,7 @@ def manual_sync_crosschex_cloud():
 		crosschex_doc.db_set(
 			"last_sync_status", f"Success - {processed_count} records processed", update_modified=False
 		)
-		frappe.db.commit()
+		# do not commit: the POST request commits the transaction
 
 		return {
 			"success": True,
