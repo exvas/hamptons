@@ -230,7 +230,7 @@ scheduler_events = {
 # Testing
 # -------
 
-# before_tests = "hamptons.install.before_tests"
+before_tests = "hamptons.tests.setup.before_tests"
 
 # Overriding Methods
 # ------------------------------
