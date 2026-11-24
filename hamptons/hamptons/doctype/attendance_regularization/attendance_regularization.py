@@ -232,7 +232,7 @@ class AttendanceRegularization(Document):
 			frappe.log_error(message=str(e), title=f"Attendance Approval Failed - {self.name}")
 			frappe.throw(_("Failed to approve attendance: {0}").format(str(e)))
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def reject(self):
 		"""Reject the regularization request - keep Absent or create Absent attendance"""
 		if self.status not in ("Pending", "Rejected"):
