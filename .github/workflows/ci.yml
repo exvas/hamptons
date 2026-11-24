@@ -22,3 +22,7 @@ jobs:
       draft_frappe_versions: '["version-15"]'
       hrms: true
       runs_on: '"ubuntu-latest"'
+      # Frappe walks every link field while building test records: erpnext's Payment Gateway Account
+      # links to Payment Gateway, which the payments app owns, so without it no test can run.
+      extra_apps: |
+        payments https://github.com/frappe/payments
